@@ -138,6 +138,7 @@ const TYPE_CHUNK = 2;
 const TYPE_END = 3;
 const CHUNK_SIZE = 64 * 1024;
 const SECRET_BYTES = 16; // 128 bits
+const PEER_WAIT_TIMEOUT_MS = 90 * 1000;
 
 const $ = (id) => document.getElementById(id);
 
@@ -249,18 +250,31 @@ async function sendData(metadata, dataBytes, statusEl, secretEl, secretWrapEl, p
     secretWrapEl.classList.remove("hidden");
     setStatus("waiting for receiver...");
 
-    // wait for peer-ready event
+    // wait for peer-ready event (with timeout)
     await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        try { ws.close(); } catch { /* ignore */ }
+        reject(new Error("no receiver joined within 90s; check the code and try again"));
+      }, PEER_WAIT_TIMEOUT_MS);
       ws.onmessage = (e) => {
         if (typeof e.data === "string") {
           try {
             const obj = JSON.parse(e.data);
-            if (obj.ev === "peer") resolve();
+            if (obj.ev === "peer") {
+              clearTimeout(timer);
+              resolve();
+            }
           } catch { /* ignore */ }
         }
       };
-      ws.onclose = () => reject(new Error("relay closed before peer joined"));
-      ws.onerror = () => reject(new Error("relay error"));
+      ws.onclose = () => {
+        clearTimeout(timer);
+        reject(new Error("relay closed before peer joined"));
+      };
+      ws.onerror = () => {
+        clearTimeout(timer);
+        reject(new Error("relay error"));
+      };
     });
 
     setStatus("sending...");
@@ -383,6 +397,12 @@ $("recv-go").onclick = async () => {
     let done = false;
 
     await new Promise((resolve, reject) => {
+      // Time out if no payload arrives. Cleared once metadata lands (the
+      // sender has started transmitting, so the wait is over).
+      let waitTimer = setTimeout(() => {
+        try { ws.close(); } catch { /* ignore */ }
+        reject(new Error("no sender found within 90s; check the code and try again"));
+      }, PEER_WAIT_TIMEOUT_MS);
       ws.onmessage = async (e) => {
         try {
           if (typeof e.data === "string") {
@@ -392,6 +412,8 @@ $("recv-go").onclick = async () => {
           const frame = new Uint8Array(e.data);
           const { type, plaintext } = await decryptFrame(aesKey, frame);
           if (type === TYPE_META) {
+            clearTimeout(waitTimer);
+            waitTimer = null;
             metadata = JSON.parse(new TextDecoder().decode(plaintext));
             setStatus(`receiving ${metadata.type === "file" ? metadata.name : "text"} (${metadata.size} bytes)...`);
           } else if (type === TYPE_CHUNK) {
@@ -405,13 +427,18 @@ $("recv-go").onclick = async () => {
             resolve();
           }
         } catch (err) {
+          if (waitTimer) clearTimeout(waitTimer);
           reject(err);
         }
       };
       ws.onclose = () => {
+        if (waitTimer) clearTimeout(waitTimer);
         if (!done) reject(new Error("relay closed before transfer complete"));
       };
-      ws.onerror = () => reject(new Error("relay error"));
+      ws.onerror = () => {
+        if (waitTimer) clearTimeout(waitTimer);
+        reject(new Error("relay error"));
+      };
     });
 
     ws.close();

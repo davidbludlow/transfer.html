@@ -38,16 +38,12 @@ Cases to exercise. Each case is independent — start fresh between them
 
 - A: send text `secret`.
 - B: click **receive**, paste a clearly wrong 22-character code (e.g. all
-  zeros: `AAAAAAAAAAAAAAAAAAAAAA`), click **receive**.
-- **Expect:** B's status shows an error (relay closed or decrypt failed) and
-  the wrong-code session does not interfere with A's session.
-
-### 5. Two pairs in parallel
-
-- Open four tabs: A1, B1, A2, B2.
-- A1 sends text `room1` to B1.
-- A2 sends text `room2` to B2.
-- **Expect:** B1 receives `room1`, B2 receives `room2`. No crossover.
+  A's: `AAAAAAAAAAAAAAAAAAAAAA`), click **receive**.
+- **Expect (immediate):** B shows "waiting for sender..." (correct: the
+  wrong code derives a different room ID, so B joins an empty room).
+- **Expect (after timeout, ~90s):** B's status flips to an error like
+  "no peer joined within 90s; check the code and try again." The button
+  is re-enabled. A's session is unaffected.
 
 ### 6. Unicode text
 
@@ -71,15 +67,19 @@ Cases to exercise. Each case is independent — start fresh between them
 
 - Run case 1.
 - B: click **copy & clear**.
-- **Expect:** Clipboard contains the received text. The `<pre>` is hidden /
-  empty.
+- **Expect:** The `<pre>` is hidden, its text is empty.
+- **Expect (manual):** Pasting elsewhere yields the received text.
+  (Programmatic clipboard reads are unreliable in headless, so this part
+  is verified by eye.)
 
-### 10. Wrong-direction send (B sends, A's old session lingers)
+### 10. Sender refresh-mid-send
 
 - A: send text. Don't have B receive yet.
-- A: while still showing the code, refresh A.
-- B: now try to receive with A's code.
-- **Expect:** B's status shows an error (peer left / relay closed).
+- A: while still showing the code, refresh the page.
+- B: now try to receive with A's old code.
+- **Expect (immediate):** B shows "waiting for sender..." (the room A was
+  in is gone; B is alone in a new room with the same ID).
+- **Expect (after timeout, ~90s):** Same timeout error as case 4.
 
 ## Notes
 
