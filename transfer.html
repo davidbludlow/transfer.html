@@ -81,9 +81,10 @@
             spellcheck="false" data-form-type="other"
             placeholder="paste or type text here. cleared after send."></textarea>
   <p style="font-size:0.85em;color:#888;margin:0.4em 0">
-    the textarea is configured to discourage browser persistence, but
-    refreshing the page mid-typing may still expose it. don't paste secrets
-    you can't recover from a leak.
+    the textarea is configured to discourage browser persistence and is
+    cleared on refresh, navigation, and unload. but a browser crash, an
+    installed browser extension, or OS-level keyboard / spellcheck /
+    clipboard-history features can still capture text typed here.
   </p>
   <div class="row">
     <button id="text-go">send</button>
