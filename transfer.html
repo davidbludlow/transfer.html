@@ -50,16 +50,6 @@
 <p class="sub">end-to-end encrypted file/text transfer · <span id="version">v0.1</span></p>
 
 <fieldset>
-  <legend>relay</legend>
-  <div class="row">
-    <input id="relay" type="text" autocomplete="off" autocorrect="off"
-           autocapitalize="off" spellcheck="false" data-form-type="other"
-           value="wss://davidbludlow-transfer-html-relay.fly.dev/">
-    <small style="color:#888">override with <code>?relay=ws://localhost:8080/</code> in the URL</small>
-  </div>
-</fieldset>
-
-<fieldset>
   <legend>mode</legend>
   <div class="row">
     <button id="m-send-file">send file</button>
@@ -207,8 +197,15 @@ function generateSecret() {
 }
 
 // ---------- relay socket ----------
+// Default relay; override at load time with ?relay=... in the URL.
+let RELAY_URL = "wss://davidbludlow-transfer-html-relay.fly.dev/";
+{
+  const override = new URLSearchParams(location.search).get("relay");
+  if (override) RELAY_URL = override;
+}
+
 function relayUrl(roomId) {
-  const base = $("relay").value.trim().replace(/\/$/, "");
+  const base = RELAY_URL.trim().replace(/\/$/, "");
   return base + "/?room=" + encodeURIComponent(roomId);
 }
 
@@ -497,12 +494,6 @@ addEventListener("beforeunload", () => {
   $("recv-secret").value = "";
   $("recv-text").textContent = "";
 });
-
-// ---------- relay override via ?relay=... in the URL ----------
-{
-  const override = new URLSearchParams(location.search).get("relay");
-  if (override) $("relay").value = override;
-}
 
 // start with the send-file panel visible
 showPanel("p-send-file");
