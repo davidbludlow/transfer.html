@@ -81,12 +81,22 @@ deploying.
 ### 5. Deploy
 
 ```sh
-fly deploy
+fly deploy --ha=false
 ```
 
 Fly builds the Docker image remotely (you do not need Docker
 installed) and rolls out a single machine. After ~60-90s it prints the
 URL.
+
+**The `--ha=false` flag is critical.** Without it, Fly defaults to
+two machines for high availability. The relay holds rooms in
+in-memory state, so two clients that land on different machines never
+see each other and the transfer hangs forever. If you've already
+deployed without `--ha=false`, fix it with:
+
+```sh
+fly scale count 1
+```
 
 ### 6. Smoke-test
 
@@ -142,6 +152,10 @@ fly scale count 0
 
 ## Things that may bite you
 
+- **The relay must run as a single machine.** Rooms are held in
+  in-memory state, so two clients on different machines never meet.
+  Use `--ha=false` on first deploy or `fly scale count 1` after the
+  fact. This is the single most likely thing to bite you.
 - **`auto_stop_machines` syntax has changed historically.** Recent
   versions accept `"stop"`; older versions wanted `true`. If
   `fly deploy` rejects the toml, swap the value and retry.

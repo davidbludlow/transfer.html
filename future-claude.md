@@ -17,6 +17,7 @@ A minimal end-to-end encrypted file/text transfer tool. The client is a single s
 - **No external runtime dependencies in the HTML.** Vanilla JS, Web Crypto API, plain CSS. If you find yourself wanting to import a library, justify it in writing.
 - **No telemetry.** No analytics, no error reporting, no health checks that phone home, no metrics endpoints that include user data.
 - **No persistence.** The relay holds no state across restarts. Rooms are in-memory only and time out. If you add storage, you've broken the threat model.
+- **Single-machine deployment.** The relay holds rooms in process-local memory; two machines do not share state. If a hosting platform's default is multi-machine HA, force single-machine (e.g. `fly deploy --ha=false`). Do not "fix" this with shared storage — that violates the no-persistence rule above. If you ever need true HA, the right move is sticky routing by room ID, not shared state.
 - **No `--allow-all` for the relay.** The relay needs `--allow-net` only. Don't grant disk, env, or subprocess permissions.
 - **Symmetric crypto only on the wire.** Don't add asymmetric crypto (RSA, ECDH, X25519, post-quantum KEMs) to the data path. The pre-shared-secret model is the source of the post-quantum guarantee. Adding key exchange is a regression unless deliberately argued for.
 - **Never weaken the cipher.** AES-256-GCM is the minimum. Don't downgrade to AES-128 even if "the secret has 128 bits of entropy" — Grover halves it.

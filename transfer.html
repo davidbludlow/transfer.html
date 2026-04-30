@@ -54,8 +54,8 @@
   <div class="row">
     <input id="relay" type="text" autocomplete="off" autocorrect="off"
            autocapitalize="off" spellcheck="false" data-form-type="other"
-           value="ws://localhost:8080/">
-    <small style="color:#888">e.g. ws://localhost:8080/ or wss://relay.example.com/</small>
+           value="wss://davidbludlow-transfer-html-relay.fly.dev/">
+    <small style="color:#888">override with <code>?relay=ws://localhost:8080/</code> in the URL</small>
   </div>
 </fieldset>
 
@@ -497,6 +497,12 @@ addEventListener("beforeunload", () => {
   $("recv-secret").value = "";
   $("recv-text").textContent = "";
 });
+
+// ---------- relay override via ?relay=... in the URL ----------
+{
+  const override = new URLSearchParams(location.search).get("relay");
+  if (override) $("relay").value = override;
+}
 
 // start with the send-file panel visible
 showPanel("p-send-file");
