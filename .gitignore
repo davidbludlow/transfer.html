@@ -1,1 +1,8 @@
 prior-art/
+
+# Playwright MCP and Playwright artifacts
+.playwright-mcp/
+playwright-report/
+test-results/
+playwright/.cache/
+*.trace.zip
