@@ -24,7 +24,7 @@ the same end result. Pick what fits your jurisdiction and uptime needs.
   caches it, runs it with `--allow-net=0.0.0.0:8080`.
 - `fly.toml` — minimal Fly app config. The `app =` line contains a
   placeholder name you must replace with something globally unique on
-  Fly.io (e.g. `MYUSER-xfr-relay`).
+  Fly.io (e.g. `MYUSER-transfer-relay`).
 
 ## Recipe
 
@@ -53,7 +53,7 @@ If you already have an account: `fly auth login`.
 
 ### 3. Edit the app name
 
-Open `fly.toml` and replace `CHANGE-ME-xfr-relay` with a globally
+Open `fly.toml` and replace `CHANGE-ME-transfer-relay` with a globally
 unique name (hyphens fine, no underscores).
 
 Optionally change `primary_region` from `"iad"` (US East) to a region
@@ -91,7 +91,7 @@ curl https://YOUR-APP-NAME.fly.dev/
 Expected output:
 
 ```
-xfr relay
+transfer relay
 rooms: 0
 ```
 
@@ -155,7 +155,7 @@ fly scale count 0
 
 ## Verification checklist after deploy
 
-- `curl https://YOUR-APP-NAME.fly.dev/` returns `xfr relay\nrooms: 0\n`.
+- `curl https://YOUR-APP-NAME.fly.dev/` returns `transfer relay\nrooms: 0\n`.
 - `transfer.html` with relay URL set to `wss://YOUR-APP-NAME.fly.dev/`
   successfully round-trips a small text message between two browser
   tabs.

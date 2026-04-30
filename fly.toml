@@ -1,8 +1,8 @@
-# Fly.io configuration for the xfr relay.
+# Fly.io configuration for the transfer.html relay.
 # App name must be globally unique — change `app` to something you pick,
 # or let `fly launch` prompt you for one.
 
-app = "CHANGE-ME-xfr-relay"
+app = "CHANGE-ME-transfer-relay"
 primary_region = "iad"
 
 [build]

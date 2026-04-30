@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="referrer" content="no-referrer">
-<title>xfr</title>
+<title>transfer.html</title>
 <style>
   body {
     font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
@@ -46,7 +46,7 @@
 </style>
 </head>
 <body>
-<h1>xfr</h1>
+<h1>transfer.html</h1>
 <p class="sub">end-to-end encrypted file/text transfer · <span id="version">v0.1</span></p>
 
 <fieldset>
@@ -166,11 +166,11 @@ async function deriveKeys(secret) {
     "raw", ikm, "HKDF", false, ["deriveBits"],
   );
   const roomBits = await crypto.subtle.deriveBits(
-    { name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0), info: enc.encode("xfr-room-v1") },
+    { name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0), info: enc.encode("transfer-room-v1") },
     baseKey, 128,
   );
   const keyBits = await crypto.subtle.deriveBits(
-    { name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0), info: enc.encode("xfr-key-v1") },
+    { name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0), info: enc.encode("transfer-key-v1") },
     baseKey, 256,
   );
   const aesKey = await crypto.subtle.importKey(

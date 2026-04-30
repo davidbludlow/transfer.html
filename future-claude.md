@@ -31,7 +31,7 @@ A minimal end-to-end encrypted file/text transfer tool. The client is a single s
 
 ## Cryptographic invariants
 
-- HKDF-SHA-256 derives both the 128-bit room ID and the 256-bit AES key from a single shared secret. Distinct `info` strings ("xfr-room-v1", "xfr-key-v1") provide domain separation.
+- HKDF-SHA-256 derives both the 128-bit room ID and the 256-bit AES key from a single shared secret. Distinct `info` strings ("transfer-room-v1", "transfer-key-v1") provide domain separation.
 - The shared secret is 128 random bits, base64url-encoded. To strengthen, increase `SECRET_BYTES` in the HTML — do not change the encoding.
 - The room ID is shown to the relay. The AES key is not. If you change derivations, preserve this property.
 

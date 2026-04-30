@@ -1,4 +1,4 @@
-// xfr relay
+// transfer relay
 //
 // A dumb WebSocket forwarder. Two clients connect to the same room ID and
 // the relay splices their message streams together. The relay never sees
@@ -6,7 +6,7 @@
 // the relay never sees.
 //
 // Run:    deno run --allow-net=0.0.0.0:8080 relay.ts [port]
-// Default port is 8080. Set XFR_PORT env to override (also needs --allow-env).
+// Default port is 8080. Pass a port number as the first argument to override.
 
 const PORT = Number(Deno.args[0]) || 8080;
 const ROOM_TTL_MS = 5 * 60 * 1000;
@@ -51,7 +51,7 @@ Deno.serve({ port: PORT }, (req) => {
 
   if (req.headers.get("upgrade") !== "websocket") {
     return new Response(
-      `xfr relay\nrooms: ${rooms.size}\n`,
+      `transfer relay\nrooms: ${rooms.size}\n`,
       { status: 200, headers: { "content-type": "text/plain" } },
     );
   }
@@ -109,4 +109,4 @@ Deno.serve({ port: PORT }, (req) => {
   return response;
 });
 
-console.log(`xfr relay listening on :${PORT}`);
+console.log(`transfer relay listening on :${PORT}`);

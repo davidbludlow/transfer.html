@@ -88,8 +88,8 @@ Subsequent frames are `chunk` (up to 64 KiB plaintext each) until a final `end` 
 Both clients derive a 128-bit room ID and a 256-bit AES key from a single shared secret using HKDF-SHA-256 with separate `info` strings:
 
 ```
-room_id = HKDF-SHA-256(secret, info="xfr-room-v1", L=128) → base64url
-aes_key = HKDF-SHA-256(secret, info="xfr-key-v1",  L=256)
+room_id = HKDF-SHA-256(secret, info="transfer-room-v1", L=128) → base64url
+aes_key = HKDF-SHA-256(secret, info="transfer-key-v1",  L=256)
 ```
 
 The relay sees only `room_id`. The AES key never leaves the browsers.
