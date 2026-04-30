@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>xfr</title>
+<style>
+  body {
+    font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+    max-width: 640px;
+    margin: 2em auto;
+    padding: 0 1em;
+    line-height: 1.5;
+    color: #222;
+    background: #f8f8f7;
+  }
+  h1 { font-size: 1.4em; margin-bottom: 0.2em; }
+  .sub { color: #777; font-size: 0.9em; margin-top: 0; }
+  fieldset { border: 1px solid #ccc; padding: 1em; margin: 1em 0; }
+  legend { padding: 0 0.4em; color: #555; font-size: 0.9em; }
+  button { font: inherit; padding: 0.4em 0.9em; cursor: pointer; }
+  input[type=text], textarea {
+    font: inherit; width: 100%; box-sizing: border-box;
+    padding: 0.4em; border: 1px solid #ccc; background: white;
+  }
+  textarea { min-height: 8em; resize: vertical; }
+  .secret {
+    font-size: 1.1em; font-weight: bold;
+    padding: 0.5em; background: #fffbe6; border: 1px solid #e6d97a;
+    word-break: break-all; user-select: all;
+  }
+  .status { margin: 0.5em 0; color: #555; }
+  .err { color: #b00; }
+  .ok { color: #060; }
+  progress { width: 100%; height: 1em; }
+  pre {
+    white-space: pre-wrap; word-break: break-word;
+    background: white; border: 1px solid #ccc; padding: 0.6em;
+    max-height: 20em; overflow: auto;
+  }
+  .row { display: flex; gap: 0.5em; align-items: center; }
+  .row > * { flex: 0 0 auto; }
+  .row > input { flex: 1 1 auto; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<h1>xfr</h1>
+<p class="sub">end-to-end encrypted file/text transfer · <span id="version">v0.1</span></p>
+
+<fieldset>
+  <legend>relay</legend>
+  <div class="row">
+    <input id="relay" type="text" autocomplete="off" autocorrect="off"
+           autocapitalize="off" spellcheck="false" data-form-type="other"
+           value="ws://localhost:8080/">
+    <small style="color:#888">e.g. ws://localhost:8080/ or wss://relay.example.com/</small>
+  </div>
+</fieldset>
+
+<fieldset>
+  <legend>mode</legend>
+  <div class="row">
+    <button id="m-send-file">send file</button>
+    <button id="m-send-text">send text</button>
+    <button id="m-receive">receive</button>
+  </div>
+</fieldset>
+
+<!-- send file panel -->
+<fieldset id="p-send-file" class="hidden">
+  <legend>send file</legend>
+  <div><input id="file-input" type="file"></div>
+  <div class="row" style="margin-top:0.5em">
+    <button id="file-go">send</button>
+    <span id="file-status" class="status"></span>
+  </div>
+  <div id="file-secret-wrap" class="hidden">
+    <p>share this code with the recipient:</p>
+    <div id="file-secret" class="secret"></div>
+  </div>
+  <progress id="file-prog" class="hidden" max="1" value="0"></progress>
+</fieldset>
+
+<!-- send text panel -->
+<fieldset id="p-send-text" class="hidden">
+  <legend>send text</legend>
+  <textarea id="text-input"
+            autocomplete="off" autocorrect="off" autocapitalize="off"
+            spellcheck="false" data-form-type="other"
+            placeholder="paste or type text here. cleared after send."></textarea>
+  <p style="font-size:0.85em;color:#888;margin:0.4em 0">
+    the textarea is configured to discourage browser persistence, but
+    refreshing the page mid-typing may still expose it. don't paste secrets
+    you can't recover from a leak.
+  </p>
+  <div class="row">
+    <button id="text-go">send</button>
+    <span id="text-status" class="status"></span>
+  </div>
+  <div id="text-secret-wrap" class="hidden">
+    <p>share this code with the recipient:</p>
+    <div id="text-secret" class="secret"></div>
+  </div>
+  <progress id="text-prog" class="hidden" max="1" value="0"></progress>
+</fieldset>
+
+<!-- receive panel -->
+<fieldset id="p-receive" class="hidden">
+  <legend>receive</legend>
+  <div class="row">
+    <input id="recv-secret" type="text"
+           autocomplete="off" autocorrect="off" autocapitalize="off"
+           spellcheck="false" data-form-type="other"
+           placeholder="paste code">
+    <button id="recv-go">receive</button>
+  </div>
+  <div id="recv-status" class="status"></div>
+  <progress id="recv-prog" class="hidden" max="1" value="0"></progress>
+  <div id="recv-text-wrap" class="hidden">
+    <pre id="recv-text"></pre>
+    <div class="row">
+      <button id="recv-text-copy">copy &amp; clear</button>
+    </div>
+  </div>
+  <div id="recv-file-wrap" class="hidden">
+    <p id="recv-file-info"></p>
+    <button id="recv-file-save">save again</button>
+  </div>
+</fieldset>
+
+<script>
+"use strict";
+
+const TYPE_META = 1;
+const TYPE_CHUNK = 2;
+const TYPE_END = 3;
+const CHUNK_SIZE = 64 * 1024;
+const SECRET_BYTES = 16; // 128 bits
+
+const $ = (id) => document.getElementById(id);
+
+// ---------- base64url helpers ----------
+function bufToB64u(buf) {
+  const b = new Uint8Array(buf);
+  let s = "";
+  for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function b64uToBuf(s) {
+  s = s.replace(/-/g, "+").replace(/_/g, "/");
+  while (s.length % 4) s += "=";
+  const bin = atob(s);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+// ---------- crypto ----------
+async function deriveKeys(secret) {
+  const enc = new TextEncoder();
+  const ikm = enc.encode(secret);
+  const baseKey = await crypto.subtle.importKey(
+    "raw", ikm, "HKDF", false, ["deriveBits"],
+  );
+  const roomBits = await crypto.subtle.deriveBits(
+    { name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0), info: enc.encode("xfr-room-v1") },
+    baseKey, 128,
+  );
+  const keyBits = await crypto.subtle.deriveBits(
+    { name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0), info: enc.encode("xfr-key-v1") },
+    baseKey, 256,
+  );
+  const aesKey = await crypto.subtle.importKey(
+    "raw", keyBits, { name: "AES-GCM" }, false, ["encrypt", "decrypt"],
+  );
+  return { roomId: bufToB64u(roomBits), aesKey };
+}
+
+async function encryptFrame(aesKey, type, plaintext) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv }, aesKey, plaintext,
+  ));
+  const out = new Uint8Array(1 + 12 + ct.byteLength);
+  out[0] = type;
+  out.set(iv, 1);
+  out.set(ct, 13);
+  return out;
+}
+
+async function decryptFrame(aesKey, frame) {
+  if (frame.byteLength < 13) throw new Error("frame too short");
+  const type = frame[0];
+  const iv = frame.slice(1, 13);
+  const ct = frame.slice(13);
+  const pt = new Uint8Array(await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv }, aesKey, ct,
+  ));
+  return { type, plaintext: pt };
+}
+
+function generateSecret() {
+  return bufToB64u(crypto.getRandomValues(new Uint8Array(SECRET_BYTES)));
+}
+
+// ---------- relay socket ----------
+function relayUrl(roomId) {
+  const base = $("relay").value.trim().replace(/\/$/, "");
+  return base + "/?room=" + encodeURIComponent(roomId);
+}
+
+function connectRoom(roomId) {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(relayUrl(roomId));
+    ws.binaryType = "arraybuffer";
+    ws.onopen = () => resolve(ws);
+    ws.onerror = () => reject(new Error("relay connect failed"));
+  });
+}
+
+// ---------- panels ----------
+function showPanel(id) {
+  for (const p of ["p-send-file", "p-send-text", "p-receive"]) {
+    $(p).classList.toggle("hidden", p !== id);
+  }
+}
+
+$("m-send-file").onclick = () => showPanel("p-send-file");
+$("m-send-text").onclick = () => showPanel("p-send-text");
+$("m-receive").onclick = () => showPanel("p-receive");
+
+// ---------- send flow ----------
+async function sendData(metadata, dataBytes, statusEl, secretEl, secretWrapEl, progEl) {
+  const setStatus = (msg, cls = "") => {
+    statusEl.textContent = msg;
+    statusEl.className = "status " + cls;
+  };
+
+  try {
+    const secret = generateSecret();
+    const { roomId, aesKey } = await deriveKeys(secret);
+
+    setStatus("connecting to relay...");
+    const ws = await connectRoom(roomId);
+
+    secretEl.textContent = secret;
+    secretWrapEl.classList.remove("hidden");
+    setStatus("waiting for receiver...");
+
+    // wait for peer-ready event
+    await new Promise((resolve, reject) => {
+      ws.onmessage = (e) => {
+        if (typeof e.data === "string") {
+          try {
+            const obj = JSON.parse(e.data);
+            if (obj.ev === "peer") resolve();
+          } catch { /* ignore */ }
+        }
+      };
+      ws.onclose = () => reject(new Error("relay closed before peer joined"));
+      ws.onerror = () => reject(new Error("relay error"));
+    });
+
+    setStatus("sending...");
+    progEl.classList.remove("hidden");
+
+    // metadata
+    const metaBytes = new TextEncoder().encode(JSON.stringify(metadata));
+    ws.send(await encryptFrame(aesKey, TYPE_META, metaBytes));
+
+    // chunks
+    const total = dataBytes.byteLength;
+    let sent = 0;
+    while (sent < total) {
+      const slice = dataBytes.subarray(sent, Math.min(sent + CHUNK_SIZE, total));
+      ws.send(await encryptFrame(aesKey, TYPE_CHUNK, slice));
+      sent += slice.byteLength;
+      progEl.value = total === 0 ? 1 : sent / total;
+      // yield to UI
+      await new Promise((r) => setTimeout(r, 0));
+    }
+
+    // end marker
+    ws.send(await encryptFrame(aesKey, TYPE_END, new Uint8Array(0)));
+
+    // wait briefly for relay to flush, then close
+    await new Promise((r) => setTimeout(r, 200));
+    ws.close();
+
+    setStatus("sent.", "ok");
+    progEl.value = 1;
+  } catch (err) {
+    setStatus("error: " + err.message, "err");
+    throw err;
+  }
+}
+
+// ---------- send file ----------
+$("file-go").onclick = async () => {
+  const f = $("file-input").files[0];
+  if (!f) {
+    $("file-status").textContent = "pick a file first.";
+    $("file-status").className = "status err";
+    return;
+  }
+  $("file-go").disabled = true;
+  try {
+    const buf = new Uint8Array(await f.arrayBuffer());
+    await sendData(
+      { type: "file", name: f.name, size: f.size },
+      buf,
+      $("file-status"),
+      $("file-secret"),
+      $("file-secret-wrap"),
+      $("file-prog"),
+    );
+  } catch { /* status already set */ }
+  finally {
+    $("file-go").disabled = false;
+  }
+};
+
+// ---------- send text ----------
+$("text-go").onclick = async () => {
+  const ta = $("text-input");
+  const text = ta.value;
+  if (!text) {
+    $("text-status").textContent = "type some text first.";
+    $("text-status").className = "status err";
+    return;
+  }
+  $("text-go").disabled = true;
+  try {
+    const bytes = new TextEncoder().encode(text);
+    await sendData(
+      { type: "text", size: bytes.byteLength },
+      bytes,
+      $("text-status"),
+      $("text-secret"),
+      $("text-secret-wrap"),
+      $("text-prog"),
+    );
+    // wipe textarea — not perfect, but helps
+    ta.value = "";
+  } catch { /* status already set */ }
+  finally {
+    $("text-go").disabled = false;
+  }
+};
+
+// ---------- receive ----------
+$("recv-go").onclick = async () => {
+  const secret = $("recv-secret").value.trim();
+  if (!secret) {
+    $("recv-status").textContent = "paste a code first.";
+    $("recv-status").className = "status err";
+    return;
+  }
+  // clear the input — we don't want it sticking around
+  $("recv-secret").value = "";
+  $("recv-go").disabled = true;
+  $("recv-text-wrap").classList.add("hidden");
+  $("recv-file-wrap").classList.add("hidden");
+  $("recv-prog").classList.remove("hidden");
+  $("recv-prog").value = 0;
+
+  const setStatus = (msg, cls = "") => {
+    $("recv-status").textContent = msg;
+    $("recv-status").className = "status " + cls;
+  };
+
+  try {
+    const { roomId, aesKey } = await deriveKeys(secret);
+    setStatus("connecting to relay...");
+    const ws = await connectRoom(roomId);
+
+    setStatus("waiting for sender...");
+    let metadata = null;
+    let received = 0;
+    const chunks = [];
+    let done = false;
+
+    await new Promise((resolve, reject) => {
+      ws.onmessage = async (e) => {
+        try {
+          if (typeof e.data === "string") {
+            // control frame from relay (peer-ready notification)
+            return;
+          }
+          const frame = new Uint8Array(e.data);
+          const { type, plaintext } = await decryptFrame(aesKey, frame);
+          if (type === TYPE_META) {
+            metadata = JSON.parse(new TextDecoder().decode(plaintext));
+            setStatus(`receiving ${metadata.type === "file" ? metadata.name : "text"} (${metadata.size} bytes)...`);
+          } else if (type === TYPE_CHUNK) {
+            chunks.push(plaintext);
+            received += plaintext.byteLength;
+            if (metadata && metadata.size > 0) {
+              $("recv-prog").value = received / metadata.size;
+            }
+          } else if (type === TYPE_END) {
+            done = true;
+            resolve();
+          }
+        } catch (err) {
+          reject(err);
+        }
+      };
+      ws.onclose = () => {
+        if (!done) reject(new Error("relay closed before transfer complete"));
+      };
+      ws.onerror = () => reject(new Error("relay error"));
+    });
+
+    ws.close();
+
+    // assemble
+    const total = chunks.reduce((n, c) => n + c.byteLength, 0);
+    const all = new Uint8Array(total);
+    let off = 0;
+    for (const c of chunks) {
+      all.set(c, off);
+      off += c.byteLength;
+    }
+
+    if (metadata.type === "text") {
+      const text = new TextDecoder().decode(all);
+      $("recv-text").textContent = text;
+      $("recv-text-wrap").classList.remove("hidden");
+      setStatus("text received.", "ok");
+    } else {
+      const blob = new Blob([all], { type: "application/octet-stream" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = metadata.name || "received.bin";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      $("recv-file-info").textContent = `received: ${metadata.name} (${total} bytes)`;
+      $("recv-file-save").onclick = () => a.click();
+      $("recv-file-wrap").classList.remove("hidden");
+      // keep URL alive for re-save; revoke on navigation
+      addEventListener("beforeunload", () => URL.revokeObjectURL(url), { once: true });
+      setStatus("file received.", "ok");
+    }
+    $("recv-prog").value = 1;
+  } catch (err) {
+    setStatus("error: " + err.message, "err");
+  } finally {
+    $("recv-go").disabled = false;
+  }
+};
+
+// ---------- text-mode receive: copy & clear ----------
+$("recv-text-copy").onclick = async () => {
+  const text = $("recv-text").textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch { /* clipboard may be unavailable on file:// */ }
+  $("recv-text").textContent = "";
+  $("recv-text-wrap").classList.add("hidden");
+};
+
+// ---------- defensive: clear sensitive fields on unload ----------
+addEventListener("beforeunload", () => {
+  $("text-input").value = "";
+  $("recv-secret").value = "";
+  $("recv-text").textContent = "";
+});
+
+// start with the send-file panel visible
+showPanel("p-send-file");
+</script>
+</body>
+</html>
