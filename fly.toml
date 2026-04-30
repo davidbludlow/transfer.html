@@ -1,22 +1,20 @@
-# Fly.io configuration for the transfer.html relay.
-# App name must be globally unique — change `app` to something you pick,
-# or let `fly launch` prompt you for one.
+# fly.toml app configuration file generated for davidbludlow-transfer-html-relay on 2026-04-30T14:58:59-06:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
 
-app = "CHANGE-ME-transfer-relay"
-primary_region = "iad"
+app = 'davidbludlow-transfer-html-relay'
+primary_region = 'iad'
 
 [build]
 
 [http_service]
   internal_port = 8080
   force_https = true
-  # Scale to zero when idle, wake on first connect. Fly bills compute
-  # per-second; with min=0 you pay only for the seconds the machine is
-  # actually running, plus a few cents/month for the stopped rootfs.
-  auto_stop_machines = "stop"
+  auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 0
 
 [[vm]]
-  size = "shared-cpu-1x"
-  memory = "256mb"
+  size = 'shared-cpu-1x'
+  memory = '256mb'

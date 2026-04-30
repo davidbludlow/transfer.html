@@ -1,0 +1,68 @@
+# flyctl launch added from .gitignore
+**/prior-art
+
+# Playwright MCP and Playwright artifacts
+**/.playwright-mcp
+**/playwright-report
+**/test-results
+**/playwright/.cache
+**/*.trace.zip
+
+# flyctl launch added from prior-art/croc-src/.gitignore
+# If you prefer the allow list template instead of the deny list, see community template:
+# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
+#
+# Binaries for programs and plugins
+prior-art/croc-src/**/*.exe
+prior-art/croc-src/**/*.exe~
+prior-art/croc-src/**/*.dll
+prior-art/croc-src/**/*.so
+prior-art/croc-src/**/*.dylib
+
+# Test binary, built with `go test -c`
+prior-art/croc-src/**/*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+prior-art/croc-src/**/*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+prior-art/croc-src/**/go.work
+prior-art/croc-src/**/go.work.sum
+
+# Environment variables file
+prior-art/croc-src/**/.env
+
+# Croc builds
+prior-art/croc-src/croc
+prior-art/croc-src/**/croc_v*
+
+# flyctl launch added from prior-art/send/.gitignore
+prior-art/send/**/node_modules
+prior-art/send/**/coverage
+prior-art/send/**/dist
+prior-art/send/**/.env
+prior-art/send/**/.idea
+prior-art/send/**/.DS_Store
+prior-art/send/**/.nyc_output
+prior-art/send/**/.tox
+prior-art/send/**/.pytest_cache
+prior-art/send/**/*.iml
+prior-art/send/**/android/app/src/main/assets
+prior-art/send/**/ios/send-ios/assets/ios.js
+prior-art/send/**/ios/send-ios/assets/vendor.js
+prior-art/send/**/ios/send-ios.xcodeproj/project.xcworkspace/xcuserdata/*
+prior-art/send/**/ios/send-ios.xcodeproj/xcuserdata/*
+prior-art/send/**/test/integration/downloads
+
+# flyctl launch added from prior-art/send/android/.gitignore
+prior-art/send/android/**/local.properties
+prior-art/send/android/**/.gradle
+prior-art/send/android/**/build
+
+
+# flyctl launch added from prior-art/send/android/app/.gitignore
+prior-art/send/android/app/build
+fly.toml
