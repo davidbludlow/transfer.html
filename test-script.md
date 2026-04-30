@@ -84,6 +84,25 @@ Cases to exercise. Each case is independent — start fresh between them
   in is gone; B is alone in a new room with the same ID).
 - **Expect (after timeout, ~90s):** Same timeout error as case 4.
 
+### 11. Refresh clears sensitive fields
+
+Browsers attempt to restore form values across refreshes (especially
+Firefox). The page should defend against this for the file input, text
+input, and receive-code input.
+
+- A: click **send file**, pick any file. Confirm the chosen file's name
+  appears next to the file input.
+- A: refresh the page (F5 / Cmd-R).
+- **Expect:** No file is selected. The file input shows
+  "No file chosen" (or the equivalent for your browser).
+
+Repeat with the other inputs (each starting from a fresh load):
+
+- **send text** panel: type into the textarea, refresh — textarea must
+  be empty.
+- **receive** panel: paste a code into the input, refresh — input must
+  be empty.
+
 ## Notes
 
 - Browser memory permissions: any modern Chromium / Firefox / Safari

@@ -488,8 +488,19 @@ $("recv-text-copy").onclick = async () => {
   $("recv-text-wrap").classList.add("hidden");
 };
 
-// ---------- defensive: clear sensitive fields on unload ----------
+// ---------- defensive: clear sensitive fields ----------
+// On unload (so any browser snapshot taken at unload-time sees them empty).
 addEventListener("beforeunload", () => {
+  $("file-input").value = "";
+  $("text-input").value = "";
+  $("recv-secret").value = "";
+  $("recv-text").textContent = "";
+});
+// On every page show (covers initial load, refresh, and bfcache restore —
+// browser session-restore can otherwise repopulate the file input,
+// textarea, and recv-secret with what they had before navigation).
+addEventListener("pageshow", () => {
+  $("file-input").value = "";
   $("text-input").value = "";
   $("recv-secret").value = "";
   $("recv-text").textContent = "";
