@@ -1,0 +1,163 @@
+# Deploying the relay
+
+The relay is a single Deno script with no persistent state. Any host
+that can run a Deno binary and serve a public WebSocket (with TLS) will
+work. This file walks through one specific path: deploying to Fly.io's
+free allowance.
+
+## Why Fly.io as the default recipe
+
+- Free allowance is enough for personal use (a single 256MB
+  auto-sleeping machine).
+- Native Docker-image deploys; the build runs on Fly's machines, so
+  Docker doesn't need to be installed locally.
+- HTTPS / WSS terminated automatically — no cert work.
+- A single-line redeploy after future changes (`fly deploy`).
+
+Other paths (Oracle Cloud Free Tier, Hetzner, a self-hosted box behind
+Caddy or Cloudflare Tunnel, etc.) are entirely valid and will give you
+the same end result. Pick what fits your jurisdiction and uptime needs.
+
+## Files in this repo that the recipe uses
+
+- `Dockerfile` — pinned `denoland/deno:alpine` base, copies `relay.ts`,
+  caches it, runs it with `--allow-net=0.0.0.0:8080`.
+- `fly.toml` — minimal Fly app config. The `app =` line contains a
+  placeholder name you must replace with something globally unique on
+  Fly.io (e.g. `MYUSER-xfr-relay`).
+
+## Recipe
+
+### 1. Install `flyctl`
+
+```sh
+curl -L https://fly.io/install.sh | sh
+```
+
+This installs to `~/.fly/bin/flyctl` and amends `PATH` in your shell
+rc. Open a new terminal or `source ~/.zshrc` (or your shell's
+equivalent) to pick up the change.
+
+To remove later: `rm -rf ~/.fly`.
+
+### 2. Sign up and log in
+
+```sh
+fly auth signup
+```
+
+Opens a browser. Email + password + a credit card for identity
+verification. No charge if you stay in the free allowance.
+
+If you already have an account: `fly auth login`.
+
+### 3. Edit the app name
+
+Open `fly.toml` and replace `CHANGE-ME-xfr-relay` with a globally
+unique name (hyphens fine, no underscores).
+
+Optionally change `primary_region` from `"iad"` (US East) to a region
+closer to where you'll use it: `"ams"` (Amsterdam), `"fra"`
+(Frankfurt), `"sin"` (Singapore), `"nrt"` (Tokyo), etc. Run
+`fly platform regions` for the full list.
+
+### 4. Launch
+
+In the project root:
+
+```sh
+fly launch --copy-config --no-deploy --yes
+```
+
+This reads `fly.toml`, registers the app, and stops short of
+deploying.
+
+### 5. Deploy
+
+```sh
+fly deploy
+```
+
+Fly builds the Docker image remotely (you do not need Docker
+installed) and rolls out a single machine. After ~60-90s it prints the
+URL.
+
+### 6. Smoke-test
+
+```sh
+curl https://YOUR-APP-NAME.fly.dev/
+```
+
+Expected output:
+
+```
+xfr relay
+rooms: 0
+```
+
+If the first request takes a few seconds, that's the auto-sleeping
+machine waking up. Subsequent requests are immediate until it sleeps
+again (default after ~5 min idle).
+
+### 7. Point `transfer.html` at it
+
+Open `transfer.html` in a browser. In the "relay" field at the top of
+the page, replace the default `ws://localhost:8080/` with:
+
+```
+wss://YOUR-APP-NAME.fly.dev/
+```
+
+Or edit `transfer.html` so the deployed URL is the default
+(the `value` attribute of `<input id="relay">`).
+
+## Future deploys
+
+After any change to `relay.ts` or the Dockerfile:
+
+```sh
+fly deploy
+```
+
+That's it. Fly handles versioning, rollbacks (`fly releases list`,
+`fly deploy --image <previous>`), and zero-downtime swaps automatically.
+
+## Removing the deployment
+
+```sh
+fly apps destroy YOUR-APP-NAME --yes
+```
+
+Removes the app and all its machines. To pause without destroying:
+
+```sh
+fly scale count 0
+```
+
+## Things that may bite you
+
+- **Free allowance details have shifted over time.** The current
+  free-tier shape is (usually): one or two `shared-cpu-1x` machines
+  with up to 256 MB RAM, auto-stopping. If signup pushes you toward a
+  paid trial, decline and re-confirm "free" — Fly's UI sometimes
+  defaults to a card-charging trial.
+- **`auto_stop_machines` syntax has changed historically.** Recent
+  versions accept `"stop"`; older versions wanted `true`. If
+  `fly deploy` rejects the toml, swap the value and retry.
+- **WebSocket idle timeouts.** Fly's edge proxy will close idle
+  WebSockets after some minutes. Our protocol is fast and short-lived
+  so this rarely matters, but if you ever transfer a multi-GB file at
+  slow speeds and it stalls, that may be why.
+- **Logs may briefly show client IPs.** The relay does not log them,
+  but Fly's edge layer does. If client-IP exposure to the host is in
+  your threat model, host somewhere you control (Hetzner, Oracle,
+  self-hosted) and turn off proxy access logs.
+
+## Verification checklist after deploy
+
+- `curl https://YOUR-APP-NAME.fly.dev/` returns `xfr relay\nrooms: 0\n`.
+- `transfer.html` with relay URL set to `wss://YOUR-APP-NAME.fly.dev/`
+  successfully round-trips a small text message between two browser
+  tabs.
+- Computing the SHA-256 of `transfer.html` matches the value you
+  recorded for your trusted copy.
