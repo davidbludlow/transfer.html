@@ -2,17 +2,23 @@
 
 The relay is a single Deno script with no persistent state. Any host
 that can run a Deno binary and serve a public WebSocket (with TLS) will
-work. This file walks through one specific path: deploying to Fly.io's
-free allowance.
+work. This file walks through one specific path: deploying to Fly.io
+on a scale-to-zero machine.
+
+## Cost
+
+Fly.io is **not free** — they retired their always-free tier and now
+require a credit card. With the scale-to-zero config in `fly.toml`,
+expected cost for personal use is a few cents a month. Worst case if
+the machine fails to stop and runs 24/7 is ~$2/month. Fly has no
+built-in billing cap.
 
 ## Why Fly.io as the default recipe
 
-- Free allowance is enough for personal use (a single 256MB
-  auto-sleeping machine).
-- Native Docker-image deploys; the build runs on Fly's machines, so
-  Docker doesn't need to be installed locally.
-- HTTPS / WSS terminated automatically — no cert work.
-- A single-line redeploy after future changes (`fly deploy`).
+- Cheap for scale-to-zero workloads.
+- Remote Docker builds; no local Docker needed.
+- HTTPS / WSS terminated automatically.
+- One-line redeploy (`fly deploy`).
 
 Other paths (Oracle Cloud Free Tier, Hetzner, a self-hosted box behind
 Caddy or Cloudflare Tunnel, etc.) are entirely valid and will give you
@@ -46,8 +52,8 @@ To remove later: `rm -rf ~/.fly`.
 fly auth signup
 ```
 
-Opens a browser. Email + password + a credit card for identity
-verification. No charge if you stay in the free allowance.
+Opens a browser. Email + password + a credit card. Fly bills monthly
+for what you use; see the "Cost" section above for what to expect.
 
 If you already have an account: `fly auth login`.
 
@@ -136,11 +142,6 @@ fly scale count 0
 
 ## Things that may bite you
 
-- **Free allowance details have shifted over time.** The current
-  free-tier shape is (usually): one or two `shared-cpu-1x` machines
-  with up to 256 MB RAM, auto-stopping. If signup pushes you toward a
-  paid trial, decline and re-confirm "free" — Fly's UI sometimes
-  defaults to a card-charging trial.
 - **`auto_stop_machines` syntax has changed historically.** Recent
   versions accept `"stop"`; older versions wanted `true`. If
   `fly deploy` rejects the toml, swap the value and retry.

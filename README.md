@@ -54,7 +54,7 @@ deno run --allow-net=0.0.0.0:8080 relay.ts
 
 It listens on port 8080 by default. Pass a port as the first argument to change it. The relay needs no other permissions: no disk access, no environment, no subprocess. The `--allow-net` scope is intentionally narrow.
 
-For LAN-only use, run it on any machine on your network. The HTML connects via `ws://host:8080/`. For internet use, put it behind a reverse proxy that terminates TLS, and use `wss://`. See `deploy.md` for one specific recipe (Fly.io free tier).
+For LAN-only use, run it on any machine on your network. The HTML connects via `ws://host:8080/`. For internet use, put it behind a reverse proxy that terminates TLS, and use `wss://`. See `deploy.md` for one specific recipe (Fly.io, scale-to-zero — pennies per month for personal use).
 
 ## Running the tests
 
