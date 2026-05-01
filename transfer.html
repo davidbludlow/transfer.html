@@ -467,13 +467,13 @@ $("recv-go").onclick = async () => {
     setStatus("waiting for sender...");
     let metadata = null;
     let received = 0;
-    // Chained-Blob accumulation: each TYPE_CHUNK appends into a growing
-    // Blob and the previous one's reference is dropped. The browser's blob
-    // storage subsystem manages the actual bytes (Chromium spills to disk
-    // above some threshold; Firefox holds them in renderer memory). This
-    // avoids the prior chunks[] + new Uint8Array(total) double-allocation
-    // that capped Chromium at ~2 GiB on the V8 typed-array max.
-    let receivedBlob = new Blob([]);
+    // chunks accumulates each decrypted TYPE_CHUNK as a separate Uint8Array.
+    // We deliberately don't `new Blob([prev, plaintext])` per chunk — Firefox
+    // copies prev's contents on every such call (empirically O(N²) memory),
+    // which regresses Firefox from ~2 GiB to under 1 GiB. The single
+    // new Blob(chunks) at the end takes a list of buffers and lets the
+    // browser allocate Blob storage once.
+    const chunks = [];
     let done = false;
 
     await new Promise((resolve, reject) => {
@@ -504,7 +504,7 @@ $("recv-go").onclick = async () => {
             metadata = JSON.parse(new TextDecoder().decode(plaintext));
             setStatus(`receiving ${metadata.type === "file" ? metadata.name : "text"} (${metadata.size} bytes)...`);
           } else if (type === TYPE_CHUNK) {
-            receivedBlob = new Blob([receivedBlob, plaintext]);
+            chunks.push(plaintext);
             received += plaintext.byteLength;
             if (metadata && metadata.size > 0) {
               $("recv-prog").value = received / metadata.size;
@@ -532,23 +532,25 @@ $("recv-go").onclick = async () => {
 
     // Catch silent sender truncation so we don't cheerfully present a
     // 0-byte (or short) download as "received".
-    if (receivedBlob.size !== metadata.size) {
+    if (received !== metadata.size) {
       throw new Error(
-        `incomplete transfer: got ${receivedBlob.size} bytes, sender claimed ${metadata.size}`,
+        `incomplete transfer: got ${received} bytes, sender claimed ${metadata.size}`,
       );
     }
 
     if (metadata.type === "text") {
-      // For text we still need the bytes in memory to decode; text payloads
-      // are tiny so this is fine.
-      const text = new TextDecoder().decode(await receivedBlob.arrayBuffer());
+      // Text payloads are small; assembling into one buffer for decode is fine.
+      const blob = new Blob(chunks);
+      const text = new TextDecoder().decode(await blob.arrayBuffer());
       $("recv-text").textContent = text;
       $("recv-text-wrap").classList.remove("hidden");
       setStatus("text received.", "ok");
     } else {
-      // Apply the octet-stream mime type via slice() (preserves the
-      // chained content but gives the saved file the expected type).
-      const blob = receivedBlob.slice(0, receivedBlob.size, "application/octet-stream");
+      // Pass the array of chunks directly to Blob — the browser allocates
+      // its blob storage once. This skips the prior `new Uint8Array(total)`
+      // assemble step, which used to hit V8's 2^31-1 typed-array cap on
+      // Chromium at exactly 2 GiB.
+      const blob = new Blob(chunks, { type: "application/octet-stream" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -556,7 +558,7 @@ $("recv-go").onclick = async () => {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      $("recv-file-info").textContent = `received: ${metadata.name} (${receivedBlob.size} bytes)`;
+      $("recv-file-info").textContent = `received: ${metadata.name} (${received} bytes)`;
       $("recv-file-save").onclick = () => a.click();
       $("recv-file-wrap").classList.remove("hidden");
       // keep URL alive for re-save; revoke on navigation

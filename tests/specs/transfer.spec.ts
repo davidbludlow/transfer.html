@@ -108,34 +108,43 @@ test.describe("baseline behaviour", () => {
     }
   });
 
-  test("3 GiB round-trip (was the receiver ceiling pre-experiment)", async ({
-    browser,
-  }) => {
-    test.setTimeout(15 * 60 * 1000);
-    const ctx = await browser.newContext({ acceptDownloads: false });
-    try {
-      const sender = await newSender(ctx);
-      const receiver = await newReceiver(ctx);
+  // Bracket the per-browser ceiling. Each test records the outcome rather
+  // than asserting, since the point of the experiment is to discover the
+  // empirical limit. Failure mode should always be "clean" — either an
+  // explicit error status or a thrown exception, never silent corruption.
+  for (const sizeGiB of [1, 1.5, 1.75, 1.9, 2, 2.25, 2.5, 2.75, 3, 4, 6]) {
+    test(`${sizeGiB} GiB round-trip (probe)`, async ({ browser }) => {
+      test.setTimeout(20 * 60 * 1000);
+      const ctx = await browser.newContext({ acceptDownloads: false });
+      try {
+        const sender = await newSender(ctx);
+        const receiver = await newReceiver(ctx);
 
-      const size = 3 * 1024 ** 3;
-      const file = await makeSparseFile("rt-3g.bin", size);
-      const secret = await startSend(sender, file);
-      await startReceive(receiver, secret);
+        const size = Math.floor(sizeGiB * 1024 ** 3);
+        const file = await makeSparseFile(`rt-${sizeGiB}g.bin`, size);
+        const secret = await startSend(sender, file);
+        await startReceive(receiver, secret);
 
-      await expect(receiver.locator("#recv-status")).toHaveClass(/ok|err/, {
-        timeout: 12 * 60 * 1000,
-      });
-      const status = await receiver.locator("#recv-status").textContent();
-      const cls = await receiver.locator("#recv-status").getAttribute("class");
-      // Don't assert pass/fail — record what the browser actually does.
-      console.log(`    [${test.info().project.name}] 3 GiB → ${cls}: ${status}`);
-      if (cls?.includes("ok")) {
-        expect(await receivedBytes(receiver)).toBe(size);
+        await expect(receiver.locator("#recv-status")).toHaveClass(/ok|err/, {
+          timeout: 18 * 60 * 1000,
+        });
+        const status = await receiver.locator("#recv-status").textContent();
+        const cls = await receiver
+          .locator("#recv-status")
+          .getAttribute("class");
+        const project = test.info().project.name;
+        console.log(`    [${project}] ${sizeGiB} GiB → ${cls}: ${status}`);
+
+        // Whichever way it landed, must NOT be silent corruption: if status
+        // is "ok", the reported byte count must match the source size.
+        if (cls?.includes("ok")) {
+          expect(await receivedBytes(receiver)).toBe(size);
+        }
+      } finally {
+        await ctx.close();
       }
-    } finally {
-      await ctx.close();
-    }
-  });
+    });
+  }
 
   test("receiver rejects payload shorter than metadata.size", async ({
     browser,
