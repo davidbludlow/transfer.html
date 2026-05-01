@@ -6,3 +6,6 @@ playwright-report/
 test-results/
 playwright/.cache/
 *.trace.zip
+
+# Local empirical-test scratch (sparse files, ad-hoc Playwright harness, etc.)
+.test-files/

@@ -58,9 +58,20 @@ For LAN-only use, run it on any machine on your network. The HTML connects via `
 
 ## Running the tests
 
+Relay (spawns a local relay, exercises peer-ready + forwarding + cleanup):
+
 ```sh
 deno run --allow-net=127.0.0.1 --allow-run=deno test-relay.ts
 ```
+
+Crypto round-trip (HKDF derivation, AES-GCM frame encrypt/decrypt, IV
+freshness, GCM authentication):
+
+```sh
+deno run test-crypto.ts
+```
+
+Manual / end-to-end browser cases live in [test-script.md](test-script.md).
 
 ## Wire protocol
 
