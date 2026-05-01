@@ -8,7 +8,7 @@ import {
   startSend,
 } from "../helpers/page.js";
 
-test.describe("baseline behaviour (pre-experiment)", () => {
+test.describe("baseline behaviour", () => {
   test("round-trip 100 KiB", async ({ browser }) => {
     const ctx = await browser.newContext({ acceptDownloads: false });
     try {
@@ -25,6 +25,58 @@ test.describe("baseline behaviour (pre-experiment)", () => {
         `(${size} bytes)`,
       );
       expect(await receivedBytes(receiver)).toBe(size);
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  test("round-trip 100 MiB (exercises streaming sender at scale)", async ({
+    browser,
+  }) => {
+    const ctx = await browser.newContext({ acceptDownloads: false });
+    try {
+      const sender = await newSender(ctx);
+      const receiver = await newReceiver(ctx);
+
+      const size = 100 * 1024 * 1024;
+      const file = await makeSparseFile("rt-100m.bin", size);
+      const secret = await startSend(sender, file);
+      await startReceive(receiver, secret);
+
+      await expect(receiver.locator("#recv-status")).toHaveClass(/ok/, {
+        timeout: 120 * 1000,
+      });
+      expect(await receivedBytes(receiver)).toBe(size);
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  test("text round-trip preserves multi-byte UTF-8", async ({ browser }) => {
+    const ctx = await browser.newContext({ acceptDownloads: false });
+    try {
+      const sender = await newSender(ctx);
+      const receiver = await newReceiver(ctx);
+
+      const text = "héllo 🌍 こんにちは — line two\nline three";
+
+      // Switch sender to text mode and submit.
+      await sender.locator("#m-send-text").click();
+      await sender.locator("#text-input").fill(text);
+      await sender.locator("#text-go").click();
+      await sender
+        .locator("#text-secret")
+        .filter({ hasNotText: "" })
+        .waitFor();
+      const secret = (
+        (await sender.locator("#text-secret").textContent()) || ""
+      ).trim();
+
+      await receiver.locator("#recv-secret").fill(secret);
+      await receiver.locator("#recv-go").click();
+
+      await expect(receiver.locator("#recv-status")).toHaveClass(/ok/);
+      await expect(receiver.locator("#recv-text")).toHaveText(text);
     } finally {
       await ctx.close();
     }

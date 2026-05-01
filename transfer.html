@@ -236,7 +236,32 @@ $("m-send-text").onclick = () => showPanel("p-send-text");
 $("m-receive").onclick = () => showPanel("p-receive");
 
 // ---------- send flow ----------
-async function sendData(metadata, dataBytes, statusEl, secretEl, secretWrapEl, progEl) {
+// Backpressure thresholds for ws.bufferedAmount. Above HIGH the loop pauses
+// until drained below LOW. Without this, a fast disk + slow uplink would
+// queue the entire file in the WebSocket send buffer (effectively re-loading
+// it into RAM).
+const WS_BUFFER_HIGH = 4 * 1024 * 1024;
+const WS_BUFFER_LOW = 1 * 1024 * 1024;
+
+async function waitForDrain(ws, threshold) {
+  while (ws.bufferedAmount > threshold) {
+    await new Promise((r) => setTimeout(r, 25));
+  }
+}
+
+function fmtSize(n) {
+  if (n >= 1024 * 1024 * 1024) return (n / (1024 * 1024 * 1024)).toFixed(2) + " GiB";
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + " MiB";
+  if (n >= 1024) return (n / 1024).toFixed(0) + " KiB";
+  return n + " B";
+}
+
+// `source` is a Blob (or File, which extends Blob). Streaming: we read one
+// chunk at a time via source.slice(off, off+CHUNK).arrayBuffer() so we never
+// hold the whole payload in memory. Lifts the ~2 GiB sender ceiling that
+// f.arrayBuffer() used to impose, and removes the silent-truncation case
+// (each per-chunk read is small enough that Firefox can't truncate it).
+async function sendData(metadata, source, statusEl, secretEl, secretWrapEl, progEl) {
   const setStatus = (msg, cls = "") => {
     statusEl.textContent = msg;
     statusEl.className = "status " + cls;
@@ -287,30 +312,46 @@ async function sendData(metadata, dataBytes, statusEl, secretEl, secretWrapEl, p
       };
     });
 
-    setStatus("sending...");
     progEl.classList.remove("hidden");
 
-    // metadata
+    // metadata frame
     const metaBytes = new TextEncoder().encode(JSON.stringify(metadata));
     ws.send(await encryptFrame(aesKey, TYPE_META, metaBytes));
 
-    // chunks
-    const total = dataBytes.byteLength;
+    // streaming chunk loop
+    const total = source.size;
     let sent = 0;
+    let lastUiUpdate = 0;
     while (sent < total) {
-      const slice = dataBytes.subarray(sent, Math.min(sent + CHUNK_SIZE, total));
-      ws.send(await encryptFrame(aesKey, TYPE_CHUNK, slice));
-      sent += slice.byteLength;
-      progEl.value = total === 0 ? 1 : sent / total;
-      // yield to UI
-      await new Promise((r) => setTimeout(r, 0));
+      const end = Math.min(sent + CHUNK_SIZE, total);
+      const expectedLen = end - sent;
+      const sliceBytes = new Uint8Array(await source.slice(sent, end).arrayBuffer());
+      // Defensive: a per-chunk truncation would be a browser bug, but if it
+      // ever happens we want to abort instead of transmitting a metadata
+      // header that doesn't match what's been sent.
+      if (sliceBytes.byteLength !== expectedLen) {
+        throw new Error(
+          `read ${sliceBytes.byteLength} bytes from offset ${sent}, expected ${expectedLen}`,
+        );
+      }
+      await waitForDrain(ws, WS_BUFFER_HIGH);
+      ws.send(await encryptFrame(aesKey, TYPE_CHUNK, sliceBytes));
+      sent += sliceBytes.byteLength;
+
+      const now = performance.now();
+      if (now - lastUiUpdate > 100 || sent === total) {
+        progEl.value = total === 0 ? 1 : sent / total;
+        setStatus(`sending — ${fmtSize(sent)} / ${fmtSize(total)}`);
+        lastUiUpdate = now;
+      }
     }
 
     // end marker
     ws.send(await encryptFrame(aesKey, TYPE_END, new Uint8Array(0)));
 
-    // wait briefly for relay to flush, then close
-    await new Promise((r) => setTimeout(r, 200));
+    // wait for the WebSocket buffer to drain before closing so the receiver
+    // actually gets the end frame.
+    await waitForDrain(ws, 0);
     ws.close();
 
     setStatus("sent.", "ok");
@@ -340,19 +381,11 @@ $("file-go").onclick = async () => {
   }
   $("file-go").disabled = true;
   try {
-    const buf = new Uint8Array(await f.arrayBuffer());
-    // Some browsers (notably Firefox above ~2 GiB) silently return a buffer
-    // whose byteLength is shorter than the file. Catch that here so we don't
-    // transmit a metadata header claiming f.size with 0 bytes of payload.
-    if (buf.byteLength !== f.size) {
-      throw new Error(
-        `read ${buf.byteLength} bytes from file but file size is ${f.size}; ` +
-        `the browser may have truncated the read. try a smaller file.`,
-      );
-    }
+    // Pass the File directly; sendData reads it chunk-by-chunk via slice().
+    // No more pre-loading the whole file into RAM.
     await sendData(
       { type: "file", name: f.name, size: f.size },
-      buf,
+      f,
       $("file-status"),
       $("file-secret"),
       $("file-secret-wrap"),
@@ -381,9 +414,11 @@ $("text-go").onclick = async () => {
   $("text-go").disabled = true;
   try {
     const bytes = new TextEncoder().encode(text);
+    // Wrap in a Blob so it presents the same { size, slice } shape as a File.
+    const blob = new Blob([bytes]);
     await sendData(
       { type: "text", size: bytes.byteLength },
-      bytes,
+      blob,
       $("text-status"),
       $("text-secret"),
       $("text-secret-wrap"),
