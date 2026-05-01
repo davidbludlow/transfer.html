@@ -130,11 +130,13 @@ const TYPE_END = 3;
 const CHUNK_SIZE = 64 * 1024;
 const SECRET_BYTES = 32; // 256 bits — matches AES-256 entropy so Grover gives the same 128-bit post-quantum strength as the cipher itself.
 const PEER_WAIT_TIMEOUT_MS = 90 * 1000;
-// Both Chromium (V8 typed-array cap, 2^31-1) and Firefox (Blob constructor,
-// "ArrayBufferView larger than 2 GB") fail at or just above 2 GiB. Above the
-// cap, Firefox's Blob.arrayBuffer() can also silently truncate, so reject
-// upfront with a visible error rather than producing a 0-byte download.
-const MAX_FILE_BYTES = 1900 * 1024 * 1024;
+// EXPERIMENTAL (experiment-big-files branch): cap raised to 8 GiB to let
+// the streaming sender push past the previous V8/Blob-ctor ceiling. The
+// receiver may still fail somewhere below this — we surface that as a
+// clean error via the `total !== metadata.size` guard rather than as the
+// silent corruption the original code produced. Lower this on merge to
+// whatever actually works end-to-end on both browsers.
+const MAX_FILE_BYTES = 8 * 1024 * 1024 * 1024;
 
 const $ = (id) => document.getElementById(id);
 
@@ -465,7 +467,13 @@ $("recv-go").onclick = async () => {
     setStatus("waiting for sender...");
     let metadata = null;
     let received = 0;
-    const chunks = [];
+    // Chained-Blob accumulation: each TYPE_CHUNK appends into a growing
+    // Blob and the previous one's reference is dropped. The browser's blob
+    // storage subsystem manages the actual bytes (Chromium spills to disk
+    // above some threshold; Firefox holds them in renderer memory). This
+    // avoids the prior chunks[] + new Uint8Array(total) double-allocation
+    // that capped Chromium at ~2 GiB on the V8 typed-array max.
+    let receivedBlob = new Blob([]);
     let done = false;
 
     await new Promise((resolve, reject) => {
@@ -475,8 +483,15 @@ $("recv-go").onclick = async () => {
         try { ws.close(); } catch { /* ignore */ }
         reject(new Error("no sender found within 90s; check the code and try again"));
       }, PEER_WAIT_TIMEOUT_MS);
-      ws.onmessage = async (e) => {
-        try {
+
+      // Serialize message processing. Without this, two async onmessage
+      // handlers can interleave: e.g. TYPE_END's handler can call resolve()
+      // before an earlier TYPE_CHUNK's `receivedBlob = new Blob(...)` line
+      // has executed, so the validation downstream would see a short Blob.
+      // Each new handler awaits the previous one before doing its work.
+      let chain = Promise.resolve();
+      ws.onmessage = (e) => {
+        chain = chain.then(async () => {
           if (typeof e.data === "string") {
             // control frame from relay (peer-ready notification)
             return;
@@ -489,7 +504,7 @@ $("recv-go").onclick = async () => {
             metadata = JSON.parse(new TextDecoder().decode(plaintext));
             setStatus(`receiving ${metadata.type === "file" ? metadata.name : "text"} (${metadata.size} bytes)...`);
           } else if (type === TYPE_CHUNK) {
-            chunks.push(plaintext);
+            receivedBlob = new Blob([receivedBlob, plaintext]);
             received += plaintext.byteLength;
             if (metadata && metadata.size > 0) {
               $("recv-prog").value = received / metadata.size;
@@ -498,10 +513,10 @@ $("recv-go").onclick = async () => {
             done = true;
             resolve();
           }
-        } catch (err) {
+        }).catch((err) => {
           if (waitTimer) clearTimeout(waitTimer);
           reject(err);
-        }
+        });
       };
       ws.onclose = () => {
         if (waitTimer) clearTimeout(waitTimer);
@@ -515,29 +530,25 @@ $("recv-go").onclick = async () => {
 
     ws.close();
 
-    // assemble
-    const total = chunks.reduce((n, c) => n + c.byteLength, 0);
-    // Catch silent sender truncation (e.g. Firefox's Blob.arrayBuffer() above
-    // ~2 GiB) so we don't cheerfully present a 0-byte download as "received".
-    if (total !== metadata.size) {
+    // Catch silent sender truncation so we don't cheerfully present a
+    // 0-byte (or short) download as "received".
+    if (receivedBlob.size !== metadata.size) {
       throw new Error(
-        `incomplete transfer: got ${total} bytes, sender claimed ${metadata.size}`,
+        `incomplete transfer: got ${receivedBlob.size} bytes, sender claimed ${metadata.size}`,
       );
-    }
-    const all = new Uint8Array(total);
-    let off = 0;
-    for (const c of chunks) {
-      all.set(c, off);
-      off += c.byteLength;
     }
 
     if (metadata.type === "text") {
-      const text = new TextDecoder().decode(all);
+      // For text we still need the bytes in memory to decode; text payloads
+      // are tiny so this is fine.
+      const text = new TextDecoder().decode(await receivedBlob.arrayBuffer());
       $("recv-text").textContent = text;
       $("recv-text-wrap").classList.remove("hidden");
       setStatus("text received.", "ok");
     } else {
-      const blob = new Blob([all], { type: "application/octet-stream" });
+      // Apply the octet-stream mime type via slice() (preserves the
+      // chained content but gives the saved file the expected type).
+      const blob = receivedBlob.slice(0, receivedBlob.size, "application/octet-stream");
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -545,7 +556,7 @@ $("recv-go").onclick = async () => {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      $("recv-file-info").textContent = `received: ${metadata.name} (${total} bytes)`;
+      $("recv-file-info").textContent = `received: ${metadata.name} (${receivedBlob.size} bytes)`;
       $("recv-file-save").onclick = () => a.click();
       $("recv-file-wrap").classList.remove("hidden");
       // keep URL alive for re-save; revoke on navigation

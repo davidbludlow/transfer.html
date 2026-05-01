@@ -89,8 +89,11 @@ test.describe("baseline behaviour", () => {
     try {
       const sender = await newSender(ctx);
 
-      // 1901 MiB — one MiB over the current cap.
-      const file = await makeSparseFile("oversize.bin", 1901 * 1024 * 1024);
+      // Use a size safely above any plausible cap (sparse, 0 disk) so this
+      // test stays valid as the cap moves. The point is to verify that
+      // *some* upfront rejection happens with a clear "too large" message,
+      // not to probe the exact cap value.
+      const file = await makeSparseFile("oversize.bin", 16 * 1024 ** 3);
       await sender.setInputFiles("#file-input", file);
       await sender.locator("#file-go").click();
 
@@ -100,6 +103,35 @@ test.describe("baseline behaviour", () => {
       );
       // The cap is hit before any room is created, so no secret is ever shown.
       await expect(sender.locator("#file-secret")).toHaveText("");
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  test("3 GiB round-trip (was the receiver ceiling pre-experiment)", async ({
+    browser,
+  }) => {
+    test.setTimeout(15 * 60 * 1000);
+    const ctx = await browser.newContext({ acceptDownloads: false });
+    try {
+      const sender = await newSender(ctx);
+      const receiver = await newReceiver(ctx);
+
+      const size = 3 * 1024 ** 3;
+      const file = await makeSparseFile("rt-3g.bin", size);
+      const secret = await startSend(sender, file);
+      await startReceive(receiver, secret);
+
+      await expect(receiver.locator("#recv-status")).toHaveClass(/ok|err/, {
+        timeout: 12 * 60 * 1000,
+      });
+      const status = await receiver.locator("#recv-status").textContent();
+      const cls = await receiver.locator("#recv-status").getAttribute("class");
+      // Don't assert pass/fail — record what the browser actually does.
+      console.log(`    [${test.info().project.name}] 3 GiB → ${cls}: ${status}`);
+      if (cls?.includes("ok")) {
+        expect(await receivedBytes(receiver)).toBe(size);
+      }
     } finally {
       await ctx.close();
     }
