@@ -130,6 +130,11 @@ const TYPE_END = 3;
 const CHUNK_SIZE = 64 * 1024;
 const SECRET_BYTES = 16; // 128 bits
 const PEER_WAIT_TIMEOUT_MS = 90 * 1000;
+// Both Chromium (V8 typed-array cap, 2^31-1) and Firefox (Blob constructor,
+// "ArrayBufferView larger than 2 GB") fail at or just above 2 GiB. Above the
+// cap, Firefox's Blob.arrayBuffer() can also silently truncate, so reject
+// upfront with a visible error rather than producing a 0-byte download.
+const MAX_FILE_BYTES = 1900 * 1024 * 1024;
 
 const $ = (id) => document.getElementById(id);
 
@@ -237,6 +242,13 @@ async function sendData(metadata, dataBytes, statusEl, secretEl, secretWrapEl, p
     statusEl.className = "status " + cls;
   };
 
+  // Reset any UI from a previous send on this page so the prior secret
+  // isn't briefly visible while the new one is being derived.
+  secretEl.textContent = "";
+  secretWrapEl.classList.add("hidden");
+  progEl.classList.add("hidden");
+  progEl.value = 0;
+
   try {
     const secret = generateSecret();
     const { roomId, aesKey } = await deriveKeys(secret);
@@ -310,6 +322,8 @@ async function sendData(metadata, dataBytes, statusEl, secretEl, secretWrapEl, p
 }
 
 // ---------- send file ----------
+function fmtMiB(n) { return (n / 1048576).toFixed(0) + " MiB"; }
+
 $("file-go").onclick = async () => {
   const f = $("file-input").files[0];
   if (!f) {
@@ -317,9 +331,25 @@ $("file-go").onclick = async () => {
     $("file-status").className = "status err";
     return;
   }
+  if (f.size > MAX_FILE_BYTES) {
+    $("file-status").textContent =
+      `file is too large (${fmtMiB(f.size)} > ${fmtMiB(MAX_FILE_BYTES)} max). ` +
+      `for huge files, use a tool like croc, magic-wormhole, or rsync.`;
+    $("file-status").className = "status err";
+    return;
+  }
   $("file-go").disabled = true;
   try {
     const buf = new Uint8Array(await f.arrayBuffer());
+    // Some browsers (notably Firefox above ~2 GiB) silently return a buffer
+    // whose byteLength is shorter than the file. Catch that here so we don't
+    // transmit a metadata header claiming f.size with 0 bytes of payload.
+    if (buf.byteLength !== f.size) {
+      throw new Error(
+        `read ${buf.byteLength} bytes from file but file size is ${f.size}; ` +
+        `the browser may have truncated the read. try a smaller file.`,
+      );
+    }
     await sendData(
       { type: "file", name: f.name, size: f.size },
       buf,
@@ -328,8 +358,13 @@ $("file-go").onclick = async () => {
       $("file-secret-wrap"),
       $("file-prog"),
     );
-  } catch { /* status already set */ }
-  finally {
+  } catch (err) {
+    // sendData sets its own error status; only overwrite if nothing was set.
+    if (!$("file-status").className.includes("err")) {
+      $("file-status").textContent = "error: " + err.message;
+      $("file-status").className = "status err";
+    }
+  } finally {
     $("file-go").disabled = false;
   }
 };
@@ -356,8 +391,12 @@ $("text-go").onclick = async () => {
     );
     // wipe textarea — not perfect, but helps
     ta.value = "";
-  } catch { /* status already set */ }
-  finally {
+  } catch (err) {
+    if (!$("text-status").className.includes("err")) {
+      $("text-status").textContent = "error: " + err.message;
+      $("text-status").className = "status err";
+    }
+  } finally {
     $("text-go").disabled = false;
   }
 };
@@ -443,6 +482,13 @@ $("recv-go").onclick = async () => {
 
     // assemble
     const total = chunks.reduce((n, c) => n + c.byteLength, 0);
+    // Catch silent sender truncation (e.g. Firefox's Blob.arrayBuffer() above
+    // ~2 GiB) so we don't cheerfully present a 0-byte download as "received".
+    if (total !== metadata.size) {
+      throw new Error(
+        `incomplete transfer: got ${total} bytes, sender claimed ${metadata.size}`,
+      );
+    }
     const all = new Uint8Array(total);
     let off = 0;
     for (const c of chunks) {
