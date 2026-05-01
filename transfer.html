@@ -128,7 +128,7 @@ const TYPE_META = 1;
 const TYPE_CHUNK = 2;
 const TYPE_END = 3;
 const CHUNK_SIZE = 64 * 1024;
-const SECRET_BYTES = 16; // 128 bits
+const SECRET_BYTES = 32; // 256 bits — matches AES-256 entropy so Grover gives the same 128-bit post-quantum strength as the cipher itself.
 const PEER_WAIT_TIMEOUT_MS = 90 * 1000;
 // Both Chromium (V8 typed-array cap, 2^31-1) and Firefox (Blob constructor,
 // "ArrayBufferView larger than 2 GB") fail at or just above 2 GiB. Above the

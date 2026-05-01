@@ -33,7 +33,7 @@ A minimal end-to-end encrypted file/text transfer tool. The client is a single s
 ## Cryptographic invariants
 
 - HKDF-SHA-256 derives both the 128-bit room ID and the 256-bit AES key from a single shared secret. Distinct `info` strings ("transfer-room-v1", "transfer-key-v1") provide domain separation.
-- The shared secret is 128 random bits, base64url-encoded. To strengthen, increase `SECRET_BYTES` in the HTML — do not change the encoding.
+- The shared secret is 256 random bits, base64url-encoded. This matches the AES-256 key size so Grover gives the same 128-bit post-quantum strength as the cipher; a shorter secret would be the weaker link. If you change `SECRET_BYTES`, do not go below 32 — and do not change the encoding.
 - The room ID is shown to the relay. The AES key is not. If you change derivations, preserve this property.
 
 ## Adding features
