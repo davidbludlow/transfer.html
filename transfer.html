@@ -130,13 +130,18 @@ const TYPE_END = 3;
 const CHUNK_SIZE = 64 * 1024;
 const SECRET_BYTES = 32; // 256 bits — matches AES-256 entropy so Grover gives the same 128-bit post-quantum strength as the cipher itself.
 const PEER_WAIT_TIMEOUT_MS = 90 * 1000;
-// EXPERIMENTAL (experiment-big-files branch): cap raised to 8 GiB to let
-// the streaming sender push past the previous V8/Blob-ctor ceiling. The
-// receiver may still fail somewhere below this — we surface that as a
-// clean error via the `total !== metadata.size` guard rather than as the
-// silent corruption the original code produced. Lower this on merge to
-// whatever actually works end-to-end on both browsers.
-const MAX_FILE_BYTES = 8 * 1024 * 1024 * 1024;
+// Empirical end-to-end ceilings on a 30 GiB-RAM workstation (chromium and
+// firefox both pass through 6 GiB with the streaming sender and the
+// chunks[] + new Blob(chunks) receiver). Prior code capped at ~2 GiB on
+// V8's typed-array max / Firefox's Blob-constructor cap; both are gone.
+//
+// 4 GiB is below the tested ceiling and leaves headroom on a typical
+// 16 GiB user system: peak receiver memory is roughly 2x file size (the
+// chunks[] in JS heap plus the Blob during construction), so a 4 GiB
+// transfer needs ~8 GiB free RAM. On lower-RAM machines a transfer near
+// the cap will manifest as a "relay closed before transfer complete"
+// error from a browser-OOM, not silent corruption.
+const MAX_FILE_BYTES = 4 * 1024 * 1024 * 1024;
 
 const $ = (id) => document.getElementById(id);
 
