@@ -58,8 +58,6 @@ export async function newReceiver(ctx: BrowserContext): Promise<Page> {
 }
 
 // Send a file from the sender page; returns the secret displayed.
-// Throws if no secret appears within the timeout (which signals a refusal
-// to send — e.g. the size cap fired).
 export async function startSend(
   sender: Page,
   filePath: string,

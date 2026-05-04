@@ -82,39 +82,15 @@ test.describe("baseline behaviour", () => {
     }
   });
 
-  test("file larger than MAX_FILE_BYTES is rejected upfront", async ({
-    browser,
-  }) => {
-    const ctx = await browser.newContext({ acceptDownloads: false });
-    try {
-      const sender = await newSender(ctx);
-
-      // Use a size safely above any plausible cap (sparse, 0 disk) so this
-      // test stays valid as the cap moves. The point is to verify that
-      // *some* upfront rejection happens with a clear "too large" message,
-      // not to probe the exact cap value.
-      const file = await makeSparseFile("oversize.bin", 16 * 1024 ** 3);
-      await sender.setInputFiles("#file-input", file);
-      await sender.locator("#file-go").click();
-
-      await expect(sender.locator("#file-status")).toHaveClass(/err/);
-      await expect(sender.locator("#file-status")).toContainText(
-        "file is too large",
-      );
-      // The cap is hit before any room is created, so no secret is ever shown.
-      await expect(sender.locator("#file-secret")).toHaveText("");
-    } finally {
-      await ctx.close();
-    }
-  });
-
   // Bracket the per-browser ceiling. Each test records the outcome rather
   // than asserting, since the point of the experiment is to discover the
   // empirical limit. Failure mode should always be "clean" — either an
   // explicit error status or a thrown exception, never silent corruption.
-  for (const sizeGiB of [1, 1.5, 1.75, 1.9, 2, 2.25, 2.5, 2.75, 3, 4, 6]) {
+  for (
+    const sizeGiB of [1, 1.5, 1.75, 1.9, 2, 2.25, 2.5, 2.75, 3, 4, 6, 8, 10, 12, 15, 20]
+  ) {
     test(`${sizeGiB} GiB round-trip (probe)`, async ({ browser }) => {
-      test.setTimeout(20 * 60 * 1000);
+      test.setTimeout(60 * 60 * 1000);
       const ctx = await browser.newContext({ acceptDownloads: false });
       try {
         const sender = await newSender(ctx);
@@ -126,7 +102,7 @@ test.describe("baseline behaviour", () => {
         await startReceive(receiver, secret);
 
         await expect(receiver.locator("#recv-status")).toHaveClass(/ok|err/, {
-          timeout: 18 * 60 * 1000,
+          timeout: 55 * 60 * 1000,
         });
         const status = await receiver.locator("#recv-status").textContent();
         const cls = await receiver

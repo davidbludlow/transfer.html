@@ -103,23 +103,6 @@ Repeat with the other inputs (each starting from a fresh load):
 - **receive** panel: paste a code into the input, refresh — input must
   be empty.
 
-### 12. Oversized file rejected upfront
-
-The browser caps the page can rely on (V8 typed-array max in Chromium,
-Blob constructor max in Firefox) bite at or just above 2 GiB, so the
-HTML refuses files larger than a configured limit (currently 1900 MiB)
-rather than letting the browser fail silently mid-transfer.
-
-- A: click **send file**, pick a file larger than 1900 MiB. (A sparse
-  file works for this: `truncate -s 2G /tmp/big.bin`.)
-- A: click **send**.
-- **Expect:** Status shows red error text along the lines of
-  "file is too large (2048 MiB > 1900 MiB max). for huge files, use
-  a tool like croc, magic-wormhole, or rsync."
-- **Expect:** No code is shown, the send button is re-enabled, no
-  WebSocket connection to the relay is opened. (Easy to verify with
-  the relay's `rooms:` counter on its `/` page — should not increment.)
-
 ## Notes
 
 - Browser memory permissions: any modern Chromium / Firefox / Safari
