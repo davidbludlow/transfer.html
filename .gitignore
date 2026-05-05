@@ -1,5 +1,8 @@
 prior-art/
 
+# Claude Code per-machine harness state.
+.claude/
+
 # Playwright MCP and Playwright artifacts
 .playwright-mcp/
 playwright-report/
