@@ -4,7 +4,12 @@ Cases to exercise. Each case is independent — start fresh between them (reload
 
 ## Setup
 
-1. Start the relay: `deno run --allow-net=127.0.0.1:8080 relay.ts`
+1. Start the relay (from the repo root):
+   ```sh
+   deno run --allow-net=127.0.0.1:8080 \
+            --allow-env=WS_NO_BUFFER_UTIL,WS_NO_UTF_8_VALIDATE,NODE_ENV \
+            relay.ts
+   ```
 2. Open `transfer.html?relay=ws://localhost:8080/` in two browser tabs/contexts. Call them **A** and **B**. The query param overrides the hardcoded default to point both tabs at the local relay.
 3. Confirm the relay field at the top of each page shows `ws://localhost:8080/`.
 

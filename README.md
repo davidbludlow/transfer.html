@@ -8,6 +8,8 @@ End-to-end encrypted file and text transfer through a dumb relay.
 
 The HTML is a single self-contained file. No frameworks, no CDN, no fonts, no dependencies fetched at runtime. Open it from `file://` and it works.
 
+`transfer.html` is about 600 lines, all in one file. If you know JavaScript, you can audit it end-to-end in roughly an hour. If you don't want to read code, paste it into an LLM — in a few seconds it'll probably tell you it's safe to use.
+
 ## Why this design
 
 The threat model targets adversaries who can:
@@ -30,9 +32,9 @@ What protects against each:
 ## Files
 
 - `transfer.html` — the entire client. Open in any modern browser via `file://`.
-- `relay.ts` — the WebSocket forwarder. ~100 lines of Deno.
-- `test-relay.ts` — integration test for the relay.
-- `future-claude.md` — design notes for future maintainers / AI assistants.
+- `relay.ts` — the WebSocket forwarder. ~130 lines of Deno; uses `npm:ws` for proper backpressure.
+- `tests/` — all the test code (Deno scripts, Playwright suite, raw-ws load script, manual cases). See [tests/README.md](tests/README.md).
+- `CLAUDE.md` — design notes for future maintainers / AI assistants.
 
 ## How to verify your copy of the HTML
 
@@ -49,28 +51,18 @@ Compare the value against a known-good hash you trust. Re-hash after any update.
 The relay is a Deno script. On the machine that will host it:
 
 ```sh
-deno run --allow-net=0.0.0.0:8080 relay.ts
+deno run --allow-net=0.0.0.0:8080 \
+         --allow-env=WS_NO_BUFFER_UTIL,WS_NO_UTF_8_VALIDATE,NODE_ENV \
+         relay.ts
 ```
 
-It listens on port 8080 by default. Pass a port as the first argument to change it. The relay needs no other permissions: no disk access, no environment, no subprocess. The `--allow-net` scope is intentionally narrow.
+It listens on port 8080 by default. Pass a port as the first argument to change it. The `--allow-net` scope is intentionally narrow; the `--allow-env` scope is just three optional config reads from the `npm:ws` library. No disk access, no subprocess.
 
 For LAN-only use, run it on any machine on your network. The HTML connects via `ws://host:8080/`. For internet use, put it behind a reverse proxy that terminates TLS, and use `wss://`. See `deploy.md` for one specific recipe (Fly.io, scale-to-zero — pennies per month for personal use).
 
 ## Running the tests
 
-Relay (spawns a local relay, exercises peer-ready + forwarding + cleanup):
-
-```sh
-deno run --allow-net=127.0.0.1 --allow-run=deno test-relay.ts
-```
-
-Crypto round-trip (HKDF derivation, AES-GCM frame encrypt/decrypt, IV freshness, GCM authentication):
-
-```sh
-deno run test-crypto.ts
-```
-
-Manual / end-to-end browser cases live in [test-script.md](test-script.md).
+All tests live under `tests/` — Deno scripts for the relay and crypto path, a Playwright suite that drives real browsers, a raw-ws Node load script, and a manual / agent browser checklist. See [tests/README.md](tests/README.md) for what each one does and how to run it.
 
 ## Wire protocol
 
@@ -119,7 +111,7 @@ The shared secret is 256 random bits, base64url-encoded (~43 characters). Genera
 
 - Both endpoints must be online and connected at the same time. The relay does not store anything.
 - One transfer per connection. Refresh the page to start over.
-- File size is bounded by browser memory — the receiver assembles the full file before saving.
+- File size is bounded by browser memory — the receiver assembles the full file before saving. Tested up to 4 GiB through the deployed relay; somewhere above that, V8's typed-array max (~2³¹−1 bytes per allocation) starts to bite even with the chunked-Blob receiver.
 
 ## License
 

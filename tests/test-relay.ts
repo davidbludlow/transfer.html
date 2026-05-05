@@ -2,14 +2,21 @@
 // Spawns the relay, opens two WebSocket clients in the same room,
 // verifies peer-ready notification + message forwarding + cleanup.
 //
-// Run: deno run --allow-net=127.0.0.1 --allow-run=deno test-relay.ts
+// Run from the tests/ directory:
+//   cd tests && deno run --allow-net=127.0.0.1 --allow-run=deno test-relay.ts
 
 const PORT = 18080;
 const URL = `ws://127.0.0.1:${PORT}/`;
 
-// spawn relay
+// spawn relay (lives one directory up from this script)
 const relay = new Deno.Command("deno", {
-  args: ["run", `--allow-net=0.0.0.0:${PORT}`, "relay.ts", String(PORT)],
+  args: [
+    "run",
+    `--allow-net=0.0.0.0:${PORT}`,
+    "--allow-env=WS_NO_BUFFER_UTIL,WS_NO_UTF_8_VALIDATE,NODE_ENV",
+    "../relay.ts",
+    String(PORT),
+  ],
   stdout: "piped",
   stderr: "piped",
 }).spawn();

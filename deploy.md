@@ -17,7 +17,7 @@ Other paths (Oracle Cloud Free Tier, Hetzner, a self-hosted box behind Caddy or 
 
 ## Files in this repo that the recipe uses
 
-- `Dockerfile` — pinned `denoland/deno:alpine` base, copies `relay.ts`, caches it, runs it with `--allow-net=0.0.0.0:8080`.
+- `Dockerfile` — pinned `denoland/deno:alpine-2.7.14` base, copies `relay.ts` + `deno.json` + `deno.lock`, caches with `--frozen` for integrity-checked installs, runs the relay with `--allow-net=0.0.0.0:8080` and `--allow-env` scoped to three optional `npm:ws` config reads.
 - `fly.toml` — minimal Fly app config. The `app =` line contains a placeholder name you must replace with something globally unique on Fly.io (e.g. `MYUSER-transfer-relay`).
 
 ## Recipe

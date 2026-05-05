@@ -58,7 +58,11 @@ server.on("upgrade", (req, socket, head) => {
     rooms.set(roomId, room);
   }
   if (room.clients.length >= 2) {
-    socket.destroy();
+    // Complete the WS handshake then immediately close with code 1008 so
+    // clients can distinguish "room full" from a generic network error.
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      try { ws.close(1008, "room full"); } catch { /* ignore */ }
+    });
     return;
   }
 
