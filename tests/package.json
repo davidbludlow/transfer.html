@@ -10,5 +10,8 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.51.0"
+  },
+  "volta": {
+    "node": "24.15.0"
   }
 }

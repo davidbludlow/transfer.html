@@ -1,4 +1,5 @@
 prior-art/
+node_modules/
 
 # Claude Code per-machine harness state.
 .claude/

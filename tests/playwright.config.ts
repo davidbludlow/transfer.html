@@ -30,7 +30,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: "deno run --allow-net=0.0.0.0:8080 ../relay.ts",
+      command: "deno run --allow-net=0.0.0.0:8080 --allow-env=WS_NO_BUFFER_UTIL,WS_NO_UTF_8_VALIDATE,NODE_ENV ../relay.ts",
       port: 8080,
       reuseExistingServer: !process.env.CI,
       timeout: 30 * 1000,

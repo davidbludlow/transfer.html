@@ -1,112 +1,114 @@
-// transfer relay
+// transfer relay (Deno + npm:ws)
 //
-// A dumb WebSocket forwarder. Two clients connect to the same room ID and
-// the relay splices their message streams together. The relay never sees
-// plaintext: clients encrypt with a key derived from a shared secret that
-// the relay never sees.
+// Same logic as the Node version on experiment-smarter-relay, but
+// running under Deno via the `npm:` specifier. Kept as a separate
+// branch to compare runtime overhead head-to-head against pure Node.
 //
-// Run:    deno run --allow-net=0.0.0.0:8080 relay.ts [port]
-// Default port is 8080. Pass a port number as the first argument to override.
+// Run:    deno run --allow-net=0.0.0.0:8080 \
+//                  --allow-env=WS_NO_BUFFER_UTIL,WS_NO_UTF_8_VALIDATE,NODE_ENV \
+//                  relay.ts [port]
+
+import { WebSocketServer } from "npm:ws@8.20.0";
+import http from "node:http";
 
 const PORT = Number(Deno.args[0]) || 8080;
 const ROOM_TTL_MS = 5 * 60 * 1000;
-const MAX_ROOM_ID_LEN = 128;
+const PEER_BUFFER_HIGH = 4 * 1024 * 1024; // pause source recv above this
+const PEER_BUFFER_LOW = 1 * 1024 * 1024;  // resume source recv below this
 
-interface Room {
-  clients: WebSocket[];
-  createdAt: number;
-}
+const rooms = new Map();
 
-const rooms = new Map<string, Room>();
-
-function notifyPeerReady(room: Room) {
+function notifyPeerReady(room) {
   if (room.clients.length !== 2) return;
-  if (!room.clients.every((c) => c.readyState === WebSocket.OPEN)) return;
+  if (!room.clients.every((c) => c.readyState === c.OPEN)) return;
   for (const c of room.clients) {
-    try {
-      c.send(JSON.stringify({ ev: "peer" }));
-    } catch {
-      // ignore — peer left mid-notify
-    }
+    try { c.send(JSON.stringify({ ev: "peer" })); } catch { /* ignore */ }
   }
 }
 
-function cleanup() {
+setInterval(() => {
   const now = Date.now();
   for (const [id, room] of rooms) {
     if (now - room.createdAt > ROOM_TTL_MS && room.clients.length < 2) {
       for (const ws of room.clients) {
-        try {
-          ws.close(1000, "room ttl");
-        } catch { /* ignore */ }
+        try { ws.close(1000, "room ttl"); } catch { /* ignore */ }
       }
       rooms.delete(id);
     }
   }
-}
-setInterval(cleanup, 30_000);
+}, 30_000);
 
-Deno.serve({ port: PORT }, (req) => {
-  const url = new URL(req.url);
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { "content-type": "text/plain" });
+  res.end(`transfer relay\nrooms: ${rooms.size}\n`);
+});
 
-  if (req.headers.get("upgrade") !== "websocket") {
-    return new Response(
-      `transfer relay\nrooms: ${rooms.size}\n`,
-      { status: 200, headers: { "content-type": "text/plain" } },
-    );
-  }
+const wss = new WebSocketServer({ noServer: true });
 
-  const roomId = url.searchParams.get("room");
+server.on("upgrade", (req, socket, head) => {
+  const roomId = new URLSearchParams(req.url.split("?")[1]).get("room");
   if (!roomId || !/^[A-Za-z0-9_-]{1,128}$/.test(roomId)) {
-    return new Response("bad room id", { status: 400 });
+    socket.destroy();
+    return;
   }
-
-  const { socket, response } = Deno.upgradeWebSocket(req);
 
   let room = rooms.get(roomId);
   if (!room) {
     room = { clients: [], createdAt: Date.now() };
     rooms.set(roomId, room);
   }
-
   if (room.clients.length >= 2) {
-    socket.addEventListener("open", () => {
-      try {
-        socket.close(1008, "room full");
-      } catch { /* ignore */ }
-    });
-    return response;
+    socket.destroy();
+    return;
   }
 
-  room.clients.push(socket);
+  wss.handleUpgrade(req, socket, head, (ws) => {
+    room.clients.push(ws);
+    notifyPeerReady(room);
 
-  socket.addEventListener("open", () => notifyPeerReady(room!));
+    let chain = Promise.resolve();
+    let pending = 0;
 
-  socket.addEventListener("message", (e) => {
-    const peer = room!.clients.find((c) => c !== socket);
-    if (peer && peer.readyState === WebSocket.OPEN) {
-      peer.send(e.data);
-    }
-  });
+    ws.on("message", (data, isBinary) => {
+      const peer = room.clients.find((c) => c !== ws);
+      if (!peer || peer.readyState !== peer.OPEN) return;
 
-  socket.addEventListener("close", () => {
-    room!.clients = room!.clients.filter((c) => c !== socket);
-    if (room!.clients.length === 0) {
-      rooms.delete(roomId);
-    } else {
-      for (const peer of room!.clients) {
-        try {
-          peer.close(1000, "peer left");
-        } catch { /* ignore */ }
+      pending++;
+      if (pending > 1) ws.pause();
+
+      chain = chain.then(() =>
+        new Promise((resolve) => {
+          peer.send(data, { binary: isBinary }, () => resolve());
+        }).then(async () => {
+          while (
+            peer.bufferedAmount > PEER_BUFFER_LOW &&
+            peer.readyState === peer.OPEN
+          ) {
+            await new Promise((r) => setTimeout(r, 5));
+          }
+          pending--;
+          if (pending === 0) ws.resume();
+        }),
+      );
+
+      if (peer.bufferedAmount > PEER_BUFFER_HIGH) ws.pause();
+    });
+
+    ws.on("close", () => {
+      room.clients = room.clients.filter((c) => c !== ws);
+      if (room.clients.length === 0) {
+        rooms.delete(roomId);
+      } else {
+        for (const peer of room.clients) {
+          try { peer.close(1000, "peer left"); } catch { /* ignore */ }
+        }
       }
-    }
-  });
+    });
 
-  socket.addEventListener("error", () => {
-    // close handler will run after this
+    ws.on("error", () => { /* close handler runs after */ });
   });
-
-  return response;
 });
 
-console.log(`transfer relay listening on :${PORT}`);
+server.listen(PORT, () => {
+  console.log(`transfer relay listening on :${PORT}`);
+});

@@ -1,2 +1,4 @@
 *
 !/relay.ts
+!/deno.json
+!/deno.lock
