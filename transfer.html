@@ -253,9 +253,10 @@ function fmtSize(n) {
 
 // `source` is a Blob (or File, which extends Blob). Streaming: we read one
 // chunk at a time via source.slice(off, off+CHUNK).arrayBuffer() so we never
-// hold the whole payload in memory. Lifts the ~2 GiB sender ceiling that
-// f.arrayBuffer() used to impose, and removes the silent-truncation case
-// (each per-chunk read is small enough that Firefox can't truncate it).
+// hold the whole payload in memory. Avoids the ~2 GiB sender ceiling that
+// a single f.arrayBuffer() would hit, and keeps each read small enough that
+// Firefox's silent-truncation bug (Blob.arrayBuffer() above ~2 GiB) can't
+// bite.
 async function sendData(metadata, source, statusEl, secretEl, secretWrapEl, progEl) {
   const setStatus = (msg, cls = "") => {
     statusEl.textContent = msg;
@@ -367,8 +368,8 @@ $("file-go").onclick = async () => {
   }
   $("file-go").disabled = true;
   try {
-    // Pass the File directly; sendData reads it chunk-by-chunk via slice().
-    // No more pre-loading the whole file into RAM.
+    // Pass the File directly so sendData streams it chunk-by-chunk via
+    // slice() without ever holding the whole payload in RAM.
     await sendData(
       { type: "file", name: f.name, size: f.size },
       f,
@@ -531,9 +532,9 @@ $("recv-go").onclick = async () => {
       setStatus("text received.", "ok");
     } else {
       // Pass the array of chunks directly to Blob — the browser allocates
-      // its blob storage once. This skips the prior `new Uint8Array(total)`
-      // assemble step, which used to hit V8's 2^31-1 typed-array cap on
-      // Chromium at exactly 2 GiB.
+      // its blob storage once. Avoids V8's 2^31-1 typed-array cap that a
+      // single `new Uint8Array(total)` assemble step would hit on Chromium
+      // at exactly 2 GiB.
       const blob = new Blob(chunks, { type: "application/octet-stream" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
