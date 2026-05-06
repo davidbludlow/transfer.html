@@ -18,7 +18,7 @@ Other paths (Oracle Cloud Free Tier, Hetzner, a self-hosted box behind Caddy or 
 ## Files in this repo that the recipe uses
 
 - `Dockerfile` — pinned `denoland/deno:alpine-2.7.14` base, copies `relay.ts` + `deno.json` + `deno.lock`, caches with `--frozen` for integrity-checked installs, runs the relay with `--allow-net=0.0.0.0:8080` and `--allow-env` scoped to three optional `npm:ws` config reads.
-- `fly.toml` — minimal Fly app config. The `app =` line contains a placeholder name you must replace with something globally unique on Fly.io (e.g. `MYUSER-transfer-relay`).
+- `fly.toml` — **not committed**; gitignored. `fly launch` (step 3 below) generates a sensible one for you. A reference copy of the current maintainer's `fly.toml` is at the bottom of this file.
 
 ## Recipe
 
@@ -42,23 +42,23 @@ Opens a browser. Email + password + a credit card. Fly bills monthly for what yo
 
 If you already have an account: `fly auth login`.
 
-### 3. Edit the app name
-
-Open `fly.toml` and replace `CHANGE-ME-transfer-relay` with a globally unique name (hyphens fine, no underscores).
-
-Optionally change `primary_region` from `"iad"` (US East) to a region closer to where you'll use it: `"ams"` (Amsterdam), `"fra"` (Frankfurt), `"sin"` (Singapore), `"nrt"` (Tokyo), etc. Run `fly platform regions` for the full list.
-
-### 4. Launch
+### 3. Generate `fly.toml` and register the app
 
 In the project root:
 
 ```sh
-fly launch --copy-config --no-deploy --yes
+fly launch --no-deploy
 ```
 
-This reads `fly.toml`, registers the app, and stops short of deploying.
+This auto-detects your geographically-nearest Fly region, prompts for an app name (or generates one), and writes a `fly.toml` to the project root. It does NOT deploy.
 
-### 5. Deploy
+If you'd rather skip the prompts: add `--generate-name --copy-config --yes`.
+
+Optionally edit the generated `fly.toml`:
+- `memory = '1gb'` is Fly's default; you can shrink it (the maintainer runs on `'256mb'` — see the reference at the bottom).
+- `primary_region` defaults to your nearest; change if you want another. Run `fly platform regions` for the full list.
+
+### 4. Deploy
 
 ```sh
 fly deploy --ha=false
@@ -72,7 +72,7 @@ Fly builds the Docker image remotely (you do not need Docker installed) and roll
 fly scale count 1
 ```
 
-### 6. Smoke-test
+### 5. Smoke-test
 
 ```sh
 curl https://YOUR-APP-NAME.fly.dev/
@@ -87,7 +87,7 @@ rooms: 0
 
 If the first request takes a few seconds, that's the auto-sleeping machine waking up. Subsequent requests are immediate until it sleeps again (default after ~5 min idle).
 
-### 7. Point `transfer.html` at it
+### 6. Point `transfer.html` at it
 
 Open `transfer.html` in a browser. In the "relay" field at the top of the page, replace the default `ws://localhost:8080/` with:
 
@@ -131,3 +131,32 @@ fly scale count 0
 - `curl https://YOUR-APP-NAME.fly.dev/` returns `transfer relay\nrooms: 0\n`.
 - `transfer.html` with relay URL set to `wss://YOUR-APP-NAME.fly.dev/` successfully round-trips a small text message between two browser tabs.
 - Computing the SHA-256 of `transfer.html` matches the value you recorded for your trusted copy.
+
+## Reference `fly.toml`
+
+`fly.toml` is gitignored so the repo stays portable. Below is the maintainer's current `fly.toml`. Useful as a starting point if you want to mirror these settings, as a quick recovery if you lose your local file, and as a way to track historical changes via this file's git history.
+
+If you change your local `fly.toml`, update this block to match (there's a `.claude/rules/fly-toml-deploy-sync.md` rule that reminds AI assistants to do this).
+
+```toml
+# fly.toml app configuration file generated for davidbludlow-transfer-html-relay on 2026-04-30T14:58:59-06:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'davidbludlow-transfer-html-relay'
+primary_region = 'sjc'
+
+[build]
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '512mb'
+```

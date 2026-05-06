@@ -1,8 +1,15 @@
 prior-art/
 node_modules/
 
-# Claude Code per-machine harness state.
-.claude/
+# Claude Code per-machine state (rules/skills/agents/commands stay
+# tracked by default; this list ignores only the runtime cruft).
+.claude/CLAUDE.md
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+
+# fly.toml is per-deploy (app name, region, machine size). Generated
+# locally by `fly launch`. The maintainer's reference copy is in deploy.md.
+fly.toml
 
 # Playwright MCP and Playwright artifacts
 .playwright-mcp/
