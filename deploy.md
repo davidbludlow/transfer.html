@@ -54,9 +54,9 @@ This auto-detects your geographically-nearest Fly region, prompts for an app nam
 
 If you'd rather skip the prompts: add `--generate-name --copy-config --yes`.
 
-Optionally edit the generated `fly.toml`:
-- `memory = '1gb'` is Fly's default; you can shrink it (the maintainer runs on `'256mb'` — see the reference at the bottom).
-- `primary_region` defaults to your nearest; change if you want another. Run `fly platform regions` for the full list.
+> **Recommended tweak before step 4:** open the generated `fly.toml` and change `memory = '1gb'` (Fly's default) to `memory = '512mb'`. The relay runs fine in 512 MB even under heavy parallel load (256 MB OOMs around ~20 concurrent transfers; 512 MB has comfortable headroom; either is far cheaper than the 1 GB default). The maintainer's `fly.toml` at the bottom of this file shows this and a few other small tweaks.
+>
+> Optionally also change `primary_region` if you want a region other than the auto-detected nearest. Run `fly platform regions` for the full list.
 
 ### 4. Deploy
 
