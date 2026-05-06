@@ -12,6 +12,12 @@ The HTML is a single self-contained file. No frameworks, no CDN, no fonts, no de
 
 `transfer.html` is about 600 lines, all in one file. If you know JavaScript, you can audit it end-to-end in roughly an hour. If you don't want to read code, paste it into an LLM — in a few seconds it'll probably tell you it's safe to use.
 
+## Get it
+
+[**View `transfer.html` on GitHub**](https://github.com/davidbludlow/transfer.html/blob/main/transfer.html) — once you're on the file page, click the **Download raw file** icon (in the toolbar above the file content) to save it.
+
+After saving, verify its SHA-256 against the value in [How to verify your copy of the HTML](#how-to-verify-your-copy-of-the-html) below before relying on it. Then open the local copy in any modern browser.
+
 ## Why this design
 
 The threat model targets adversaries who can:
