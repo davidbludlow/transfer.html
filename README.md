@@ -1,5 +1,7 @@
 # transfer.html
 
+> Tired of trusting cloud services, your ISP, or random Wi-Fi networks with the files you send? This is one HTML file. You and the recipient open it locally in a browser, share a short code, and the file moves between you encrypted end-to-end. The relay in the middle only ever sees encrypted bytes — even if it's run by an attacker, your data stays safe.
+
 End-to-end encrypted file and text transfer through a dumb relay.
 
 - **Sender** opens `transfer.html` locally, picks a file (or types text), gets a short code.
@@ -44,7 +46,13 @@ The HTML file is the entire trust chain on the client side. Before relying on it
 sha256sum transfer.html
 ```
 
-Compare the value against a known-good hash you trust. Re-hash after any update.
+The current expected hash, for the version of `transfer.html` checked into this commit:
+
+```
+3d5c901dca4a86eaba644b585e225d493ff5c79f25c6fde6d54fb515850fc5d0  transfer.html
+```
+
+If your local copy's hash matches this value, you have the same bytes I (the maintainer) intend to ship. If it doesn't, something has changed — could be a legitimate update from the repo, could be tampering. Investigate before using.
 
 ## Running the relay
 
@@ -113,6 +121,6 @@ The shared secret is 256 random bits, base64url-encoded (~43 characters). Genera
 - One transfer per connection. Refresh the page to start over.
 - File size is bounded by browser memory — the receiver assembles the full file before saving. Tested up to 4 GiB through the deployed relay; somewhere above that, V8's typed-array max (~2³¹−1 bytes per allocation) starts to bite even with the chunked-Blob receiver.
 
-## License
+## Keywords
 
-MIT No Attribution (SPDX: `MIT-0`). See `LICENSE`.
+end-to-end encrypted file transfer · zero-trust file sharing · self-hosted Send replacement · Firefox Send alternative · single HTML file file transfer · WebCrypto AES-256-GCM transfer · share secrets without trusting the host · post-quantum-resistant file sharing · send a `.env` file securely · send credentials over chat without exposing the chat host · auditable cryptographic file transfer in ~600 lines
