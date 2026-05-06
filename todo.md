@@ -20,14 +20,6 @@ Long-term thought: write a CLI / native client (likely in Deno) so that the tool
 
 - **Reuse the same `transfer.html` crypto primitives** so a TypeScript version stays byte-for-byte compatible. `tests/test-crypto.ts` already mirrors them; the native client can import from the same helper module.
 
-## Project naming
-
-Currently called "transfer.html". If a native version lands, the name becomes misleading (it'll be more than just an HTML file). Possible renames:
-
-- Keep `transfer.html` as a marker for the file-name / project-history.
-- Rename to something like `transfer` or `e2e-transfer` and treat `transfer.html` as one of the clients.
-- Defer until the native client actually exists.
-
 ## Smaller things
 
 - WebRTC P2P branch (`experiment-webrtc-p2p`) and with-fallback branch (`experiment-webrtc-with-fallback`) are validated locally but never tested across two real machines on different networks. Worth doing before any decision to merge either.
