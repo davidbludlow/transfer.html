@@ -1,16 +1,12 @@
 # Manual / agent test script
 
-Cases to exercise. Each case is independent — start fresh between them
-(reload both tabs).
+Cases to exercise. Each case is independent — start fresh between them (reload both tabs).
 
 ## Setup
 
 1. Start the relay: `deno run --allow-net=127.0.0.1:8080 relay.ts`
-2. Open `transfer.html?relay=ws://localhost:8080/` in two browser
-   tabs/contexts. Call them **A** and **B**. The query param overrides
-   the hardcoded default to point both tabs at the local relay.
-3. Confirm the relay field at the top of each page shows
-   `ws://localhost:8080/`.
+2. Open `transfer.html?relay=ws://localhost:8080/` in two browser tabs/contexts. Call them **A** and **B**. The query param overrides the hardcoded default to point both tabs at the local relay.
+3. Confirm the relay field at the top of each page shows `ws://localhost:8080/`.
 
 ## Cases
 
@@ -40,13 +36,9 @@ Cases to exercise. Each case is independent — start fresh between them
 ### 4. Wrong code
 
 - A: send text `secret`.
-- B: click **receive**, paste a clearly wrong 22-character code (e.g. all
-  A's: `AAAAAAAAAAAAAAAAAAAAAA`), click **receive**.
-- **Expect (immediate):** B shows "waiting for sender..." (correct: the
-  wrong code derives a different room ID, so B joins an empty room).
-- **Expect (after timeout, ~90s):** B's status flips to an error like
-  "no peer joined within 90s; check the code and try again." The button
-  is re-enabled. A's session is unaffected.
+- B: click **receive**, paste a clearly wrong 22-character code (e.g. all A's: `AAAAAAAAAAAAAAAAAAAAAA`), click **receive**.
+- **Expect (immediate):** B shows "waiting for sender..." (correct: the wrong code derives a different room ID, so B joins an empty room).
+- **Expect (after timeout, ~90s):** B's status flips to an error like "no peer joined within 90s; check the code and try again." The button is re-enabled. A's session is unaffected.
 
 ### 6. Unicode text
 
@@ -71,43 +63,30 @@ Cases to exercise. Each case is independent — start fresh between them
 - Run case 1.
 - B: click **copy & clear**.
 - **Expect:** The `<pre>` is hidden, its text is empty.
-- **Expect (manual):** Pasting elsewhere yields the received text.
-  (Programmatic clipboard reads are unreliable in headless, so this part
-  is verified by eye.)
+- **Expect (manual):** Pasting elsewhere yields the received text. (Programmatic clipboard reads are unreliable in headless, so this part is verified by eye.)
 
 ### 10. Sender refresh-mid-send
 
 - A: send text. Don't have B receive yet.
 - A: while still showing the code, refresh the page.
 - B: now try to receive with A's old code.
-- **Expect (immediate):** B shows "waiting for sender..." (the room A was
-  in is gone; B is alone in a new room with the same ID).
+- **Expect (immediate):** B shows "waiting for sender..." (the room A was in is gone; B is alone in a new room with the same ID).
 - **Expect (after timeout, ~90s):** Same timeout error as case 4.
 
 ### 11. Refresh clears sensitive fields
 
-Browsers attempt to restore form values across refreshes (especially
-Firefox). The page should defend against this for the file input, text
-input, and receive-code input.
+Browsers attempt to restore form values across refreshes (especially Firefox). The page should defend against this for the file input, text input, and receive-code input.
 
-- A: click **send file**, pick any file. Confirm the chosen file's name
-  appears next to the file input.
+- A: click **send file**, pick any file. Confirm the chosen file's name appears next to the file input.
 - A: refresh the page (F5 / Cmd-R).
-- **Expect:** No file is selected. The file input shows
-  "No file chosen" (or the equivalent for your browser).
+- **Expect:** No file is selected. The file input shows "No file chosen" (or the equivalent for your browser).
 
 Repeat with the other inputs (each starting from a fresh load):
 
-- **send text** panel: type into the textarea, refresh — textarea must
-  be empty.
-- **receive** panel: paste a code into the input, refresh — input must
-  be empty.
+- **send text** panel: type into the textarea, refresh — textarea must be empty.
+- **receive** panel: paste a code into the input, refresh — input must be empty.
 
 ## Notes
 
-- Browser memory permissions: any modern Chromium / Firefox / Safari
-  (latest evergreen) should support all required APIs:
-  `crypto.subtle`, `WebSocket`, `crypto.getRandomValues`,
-  `URL.createObjectURL`. Tests assume these.
-- The textarea / input persistence concerns are best-effort and not
-  testable from script — they require a hostile browser scenario.
+- Browser memory permissions: any modern Chromium / Firefox / Safari (latest evergreen) should support all required APIs: `crypto.subtle`, `WebSocket`, `crypto.getRandomValues`, `URL.createObjectURL`. Tests assume these.
+- The textarea / input persistence concerns are best-effort and not testable from script — they require a hostile browser scenario.

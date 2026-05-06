@@ -64,8 +64,7 @@ Relay (spawns a local relay, exercises peer-ready + forwarding + cleanup):
 deno run --allow-net=127.0.0.1 --allow-run=deno test-relay.ts
 ```
 
-Crypto round-trip (HKDF derivation, AES-GCM frame encrypt/decrypt, IV
-freshness, GCM authentication):
+Crypto round-trip (HKDF derivation, AES-GCM frame encrypt/decrypt, IV freshness, GCM authentication):
 
 ```sh
 deno run test-crypto.ts
