@@ -89,13 +89,17 @@ If the first request takes a few seconds, that's the auto-sleeping machine wakin
 
 ### 6. Point `transfer.html` at it
 
-Open `transfer.html` in a browser. In the "relay" field at the top of the page, replace the default `ws://localhost:8080/` with:
+The relay URL is hardcoded in `transfer.html` as the `RELAY_URL` constant near the top of the `<script>` block. Edit it to your deployed URL:
+
+```js
+let RELAY_URL = "wss://YOUR-APP-NAME.fly.dev/";
+```
+
+For quick testing without re-editing the file, you can override at load time via the `?relay=` query parameter:
 
 ```
-wss://YOUR-APP-NAME.fly.dev/
+transfer.html?relay=wss://YOUR-APP-NAME.fly.dev/
 ```
-
-Or edit `transfer.html` so the deployed URL is the default (the `value` attribute of `<input id="relay">`).
 
 ## Future deploys
 
