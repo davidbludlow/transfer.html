@@ -46,6 +46,7 @@ export async function newSender(ctx: BrowserContext): Promise<Page> {
   const page = await ctx.newPage();
   await page.addInitScript(INSTRUMENTATION);
   await page.goto(TRANSFER_URL);
+  await page.locator("#m-send-file").click();
   return page;
 }
 
