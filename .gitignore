@@ -26,3 +26,7 @@ playwright/.cache/
 
 # Local empirical-test scratch (sparse files, ad-hoc Playwright harness, etc.)
 .test-files/
+
+# Untracked scratch dump from an exploratory research session. Local-only;
+# not meant to be checked in.
+research-notes.md
