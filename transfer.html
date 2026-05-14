@@ -501,8 +501,13 @@ $("recv-go").onclick = async () => {
           reject(err);
         });
       };
-      ws.onclose = () => {
+      ws.onclose = async () => {
         if (waitTimer) clearTimeout(waitTimer);
+        // The relay may close right after delivering the last few frames.
+        // Let any in-flight async decryption finish before deciding whether
+        // we got the END frame; otherwise a perfectly successful transfer
+        // can be reported as truncated.
+        try { await chain; } catch { /* the .catch above already handled it */ }
         if (!done) reject(new Error("relay closed before transfer complete"));
       };
       ws.onerror = () => {
