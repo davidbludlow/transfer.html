@@ -80,6 +80,14 @@ Don't accept a PR that loosens permission scopes or adds dependencies just to ma
 - A native CLI client (use existing tools like `croc` or `magic-wormhole` instead).
 - Hosting service / SaaS deployment. The relay is meant to be self-hosted by whoever uses it.
 
+## Writing docs and comments
+
+Document the current state, not the transition that produced it. Phrases like "X doesn't Y anymore", "used to do Z, now does W", or "instead of A, the code uses B" only make sense to a reader who remembers the prior version. A fresh reader doesn't, and the transition residue makes the doc harder to follow because it sounds like it's explaining a *change* when it should just be explaining what the thing *is*. Drop the framing and describe what the system does.
+
+Same for code comments: "now uses Y" → "uses Y"; "replaced the old foo with bar" → "uses bar".
+
+Commit messages and PR descriptions are the place for "what changed" — that's their entire job. Don't smuggle that content into source files or operator docs.
+
 ## When in doubt
 
 The default answer is "no, keep it small." Every line added is a line that has to be re-audited by every user before they trust the build.
