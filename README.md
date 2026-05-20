@@ -120,6 +120,7 @@ The shared secret is 256 random bits, base64url-encoded (~43 characters). Genera
 - **Traffic analysis.** The relay sees connection metadata (timestamps, byte counts, source IPs) and the opaque room ID. It cannot read content but it can confirm a transfer happened.
 - **Shoulder surfing of the secret.** The shared code is shown on screen during sending. Don't share screens during a transfer.
 - **A leaked secret.** Anyone who obtains the shared secret can derive the same room ID and key, join the room, and intercept the transfer. Treat the secret like a password for the duration of the transfer.
+- **A maliciously-active relay scrambling the byte order.** The relay still can't *read* your file (it sees only ciphertext and an opaque room ID), but it could selectively drop, duplicate, or reorder whole encrypted frames before forwarding. Each frame's AES-GCM tag protects *that* frame's bytes from tampering, but doesn't pin its position in the stream. The receiver's end-of-transfer size check catches gross mismatches (missing or extra chunks), but an equal-size scramble would silently produce a corrupted file the receiver thinks succeeded. Mitigating this means adding sequence information inside each frame; tracked in `todo.md` as a known item to address.
 
 ## Limits
 
