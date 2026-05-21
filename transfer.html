@@ -122,113 +122,16 @@
 </fieldset>
 
 <script type="module">
+// ---------- configuration ----------
+// Wire-protocol frame types (see CLAUDE.md "Wire protocol invariants").
 const TYPE_META = 1;
 const TYPE_CHUNK = 2;
 const TYPE_END = 3;
+
 const CHUNK_SIZE = 64 * 1024;
 const SECRET_BYTES = 32; // 256 bits — matches AES-256 entropy so Grover gives the same 128-bit post-quantum strength as the cipher itself.
 const PEER_WAIT_TIMEOUT_MS = 90 * 1000;
 
-const $ = (id) => document.getElementById(id);
-
-// ---------- base64url helpers ----------
-function bufToB64u(buf) {
-  const b = new Uint8Array(buf);
-  let s = "";
-  for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
-  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-function b64uToBuf(s) {
-  s = s.replace(/-/g, "+").replace(/_/g, "/");
-  while (s.length % 4) s += "=";
-  const bin = atob(s);
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
-}
-
-// ---------- crypto ----------
-async function deriveKeys(secret) {
-  const enc = new TextEncoder();
-  const ikm = enc.encode(secret);
-  const baseKey = await crypto.subtle.importKey(
-    "raw", ikm, "HKDF", false, ["deriveBits"],
-  );
-  const roomBits = await crypto.subtle.deriveBits(
-    { name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0), info: enc.encode("transfer-room-v1") },
-    baseKey, 128,
-  );
-  const keyBits = await crypto.subtle.deriveBits(
-    { name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0), info: enc.encode("transfer-key-v1") },
-    baseKey, 256,
-  );
-  const aesKey = await crypto.subtle.importKey(
-    "raw", keyBits, { name: "AES-GCM" }, false, ["encrypt", "decrypt"],
-  );
-  return { roomId: bufToB64u(roomBits), aesKey };
-}
-
-async function encryptFrame(aesKey, type, plaintext) {
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ct = new Uint8Array(await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv }, aesKey, plaintext,
-  ));
-  const out = new Uint8Array(1 + 12 + ct.byteLength);
-  out[0] = type;
-  out.set(iv, 1);
-  out.set(ct, 13);
-  return out;
-}
-
-async function decryptFrame(aesKey, frame) {
-  if (frame.byteLength < 13) throw new Error("frame too short");
-  const type = frame[0];
-  const iv = frame.slice(1, 13);
-  const ct = frame.slice(13);
-  const pt = new Uint8Array(await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv }, aesKey, ct,
-  ));
-  return { type, plaintext: pt };
-}
-
-function generateSecret() {
-  return bufToB64u(crypto.getRandomValues(new Uint8Array(SECRET_BYTES)));
-}
-
-// ---------- relay socket ----------
-// Default relay; override at load time with ?relay=... in the URL.
-let RELAY_URL = "wss://davidbludlow-transfer-html-relay.fly.dev/";
-{
-  const override = new URLSearchParams(location.search).get("relay");
-  if (override) RELAY_URL = override;
-}
-
-function relayUrl(roomId) {
-  const base = RELAY_URL.trim().replace(/\/$/, "");
-  return base + "/?room=" + encodeURIComponent(roomId);
-}
-
-function connectRoom(roomId) {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(relayUrl(roomId));
-    ws.binaryType = "arraybuffer";
-    ws.onopen = () => resolve(ws);
-    ws.onerror = () => reject(new Error("relay connect failed"));
-  });
-}
-
-// ---------- panels ----------
-function showPanel(id) {
-  for (const p of ["p-send-file", "p-send-text", "p-receive"]) {
-    $(p).classList.toggle("hidden", p !== id);
-  }
-}
-
-$("m-send-file").onclick = () => showPanel("p-send-file");
-$("m-send-text").onclick = () => showPanel("p-send-text");
-$("m-receive").onclick = () => showPanel("p-receive");
-
-// ---------- send flow ----------
 // Backpressure thresholds for ws.bufferedAmount. Above HIGH the loop pauses
 // until drained below LOW. Without this, a fast disk + slow uplink would
 // queue the entire file in the WebSocket send buffer (effectively re-loading
@@ -236,125 +139,29 @@ $("m-receive").onclick = () => showPanel("p-receive");
 const WS_BUFFER_HIGH = 4 * 1024 * 1024;
 const WS_BUFFER_LOW = 1 * 1024 * 1024;
 
-async function waitForDrain(ws, threshold) {
-  while (ws.bufferedAmount > threshold) {
-    await new Promise((r) => setTimeout(r, 25));
-  }
+// Default relay; override at load time with ?relay=... in the URL.
+let RELAY_URL = "wss://davidbludlow-transfer-html-relay.fly.dev/";
+{
+  const override = new URLSearchParams(location.search).get("relay");
+  if (override) RELAY_URL = override;
 }
 
-function fmtSize(n) {
-  if (n >= 1024 * 1024 * 1024) return (n / (1024 * 1024 * 1024)).toFixed(2) + " GiB";
-  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + " MiB";
-  if (n >= 1024) return (n / 1024).toFixed(0) + " KiB";
-  return n + " B";
-}
+// Shorthand for document.getElementById. NOT jQuery — just a one-character
+// alias so the DOM-touching parts of this file stay readable.
+const $ = (id) => document.getElementById(id);
 
-// `source` is a Blob (or File, which extends Blob). Streaming: we read one
-// chunk at a time via source.slice(off, off+CHUNK).arrayBuffer() so we never
-// hold the whole payload in memory. Avoids the ~2 GiB sender ceiling that
-// a single f.arrayBuffer() would hit, and keeps each read small enough that
-// Firefox's silent-truncation bug (Blob.arrayBuffer() above ~2 GiB) can't
-// bite.
-async function sendData(metadata, source, statusEl, secretEl, secretWrapEl, progEl) {
-  const setStatus = (msg, cls = "") => {
-    statusEl.textContent = msg;
-    statusEl.className = "status " + cls;
-  };
+// ============================================================
+// Layout: configuration is above. Below is the user-action flow —
+// click handlers, sendData, page lifecycle hooks. The supporting
+// machinery (crypto, base64, panel show/hide, relay-socket helpers)
+// lives at the bottom of this script block; function hoisting lets
+// the flow above call those helpers despite their source position.
+// ============================================================
 
-  // Reset any UI from a previous send on this page so the prior secret
-  // isn't briefly visible while the new one is being derived.
-  secretEl.textContent = "";
-  secretWrapEl.classList.add("hidden");
-  progEl.classList.add("hidden");
-  progEl.value = 0;
-
-  try {
-    const secret = generateSecret();
-    const { roomId, aesKey } = await deriveKeys(secret);
-
-    setStatus("connecting to relay...");
-    const ws = await connectRoom(roomId);
-
-    secretEl.textContent = secret;
-    secretWrapEl.classList.remove("hidden");
-    setStatus("waiting for receiver...");
-
-    // wait for peer-ready event (with timeout)
-    await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        try { ws.close(); } catch { /* ignore */ }
-        reject(new Error("no receiver joined within 90s; check the code and try again"));
-      }, PEER_WAIT_TIMEOUT_MS);
-      ws.onmessage = (e) => {
-        if (typeof e.data === "string") {
-          try {
-            const obj = JSON.parse(e.data);
-            if (obj.ev === "peer") {
-              clearTimeout(timer);
-              resolve();
-            }
-          } catch { /* ignore */ }
-        }
-      };
-      ws.onclose = () => {
-        clearTimeout(timer);
-        reject(new Error("relay closed before peer joined"));
-      };
-      ws.onerror = () => {
-        clearTimeout(timer);
-        reject(new Error("relay error"));
-      };
-    });
-
-    progEl.classList.remove("hidden");
-
-    // metadata frame
-    const metaBytes = new TextEncoder().encode(JSON.stringify(metadata));
-    ws.send(await encryptFrame(aesKey, TYPE_META, metaBytes));
-
-    // streaming chunk loop
-    const total = source.size;
-    let sent = 0;
-    let lastUiUpdate = 0;
-    while (sent < total) {
-      const end = Math.min(sent + CHUNK_SIZE, total);
-      const expectedLen = end - sent;
-      const sliceBytes = new Uint8Array(await source.slice(sent, end).arrayBuffer());
-      // Defensive: a per-chunk truncation would be a browser bug, but if it
-      // ever happens we want to abort instead of transmitting a metadata
-      // header that doesn't match what's been sent.
-      if (sliceBytes.byteLength !== expectedLen) {
-        throw new Error(
-          `read ${sliceBytes.byteLength} bytes from offset ${sent}, expected ${expectedLen}`,
-        );
-      }
-      await waitForDrain(ws, WS_BUFFER_HIGH);
-      ws.send(await encryptFrame(aesKey, TYPE_CHUNK, sliceBytes));
-      sent += sliceBytes.byteLength;
-
-      const now = performance.now();
-      if (now - lastUiUpdate > 100 || sent === total) {
-        progEl.value = total === 0 ? 1 : sent / total;
-        setStatus(`sending — ${fmtSize(sent)} / ${fmtSize(total)}`);
-        lastUiUpdate = now;
-      }
-    }
-
-    // end marker
-    ws.send(await encryptFrame(aesKey, TYPE_END, new Uint8Array(0)));
-
-    // wait for the WebSocket buffer to drain before closing so the receiver
-    // actually gets the end frame.
-    await waitForDrain(ws, 0);
-    ws.close();
-
-    setStatus("sent.", "ok");
-    progEl.value = 1;
-  } catch (err) {
-    setStatus("error: " + err.message, "err");
-    throw err;
-  }
-}
+// ---------- mode buttons ----------
+$("m-send-file").onclick = () => showPanel("p-send-file");
+$("m-send-text").onclick = () => showPanel("p-send-text");
+$("m-receive").onclick = () => showPanel("p-receive");
 
 // ---------- send file ----------
 $("file-go").onclick = async () => {
@@ -571,6 +378,114 @@ $("recv-text-copy").onclick = async () => {
   $("recv-text-wrap").classList.add("hidden");
 };
 
+// ---------- send: encrypt + stream + close ----------
+// Called from the file-go and text-go handlers above. `source` is a Blob (or
+// File, which extends Blob). Streaming: we read one chunk at a time via
+// source.slice(off, off+CHUNK).arrayBuffer() so we never hold the whole
+// payload in memory. Avoids the ~2 GiB sender ceiling that a single
+// f.arrayBuffer() would hit, and keeps each read small enough that Firefox's
+// silent-truncation bug (Blob.arrayBuffer() above ~2 GiB) can't bite.
+async function sendData(metadata, source, statusEl, secretEl, secretWrapEl, progEl) {
+  const setStatus = (msg, cls = "") => {
+    statusEl.textContent = msg;
+    statusEl.className = "status " + cls;
+  };
+
+  // Reset any UI from a previous send on this page so the prior secret
+  // isn't briefly visible while the new one is being derived.
+  secretEl.textContent = "";
+  secretWrapEl.classList.add("hidden");
+  progEl.classList.add("hidden");
+  progEl.value = 0;
+
+  try {
+    const secret = generateSecret();
+    const { roomId, aesKey } = await deriveKeys(secret);
+
+    setStatus("connecting to relay...");
+    const ws = await connectRoom(roomId);
+
+    secretEl.textContent = secret;
+    secretWrapEl.classList.remove("hidden");
+    setStatus("waiting for receiver...");
+
+    // wait for peer-ready event (with timeout)
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        try { ws.close(); } catch { /* ignore */ }
+        reject(new Error("no receiver joined within 90s; check the code and try again"));
+      }, PEER_WAIT_TIMEOUT_MS);
+      ws.onmessage = (e) => {
+        if (typeof e.data === "string") {
+          try {
+            const obj = JSON.parse(e.data);
+            if (obj.ev === "peer") {
+              clearTimeout(timer);
+              resolve();
+            }
+          } catch { /* ignore */ }
+        }
+      };
+      ws.onclose = () => {
+        clearTimeout(timer);
+        reject(new Error("relay closed before peer joined"));
+      };
+      ws.onerror = () => {
+        clearTimeout(timer);
+        reject(new Error("relay error"));
+      };
+    });
+
+    progEl.classList.remove("hidden");
+
+    // metadata frame
+    const metaBytes = new TextEncoder().encode(JSON.stringify(metadata));
+    ws.send(await encryptFrame(aesKey, TYPE_META, metaBytes));
+
+    // streaming chunk loop
+    const total = source.size;
+    let sent = 0;
+    let lastUiUpdate = 0;
+    while (sent < total) {
+      const end = Math.min(sent + CHUNK_SIZE, total);
+      const expectedLen = end - sent;
+      const sliceBytes = new Uint8Array(await source.slice(sent, end).arrayBuffer());
+      // Defensive: a per-chunk truncation would be a browser bug, but if it
+      // ever happens we want to abort instead of transmitting a metadata
+      // header that doesn't match what's been sent.
+      if (sliceBytes.byteLength !== expectedLen) {
+        throw new Error(
+          `read ${sliceBytes.byteLength} bytes from offset ${sent}, expected ${expectedLen}`,
+        );
+      }
+      await waitForDrain(ws, WS_BUFFER_HIGH);
+      ws.send(await encryptFrame(aesKey, TYPE_CHUNK, sliceBytes));
+      sent += sliceBytes.byteLength;
+
+      const now = performance.now();
+      if (now - lastUiUpdate > 100 || sent === total) {
+        progEl.value = total === 0 ? 1 : sent / total;
+        setStatus(`sending — ${fmtSize(sent)} / ${fmtSize(total)}`);
+        lastUiUpdate = now;
+      }
+    }
+
+    // end marker
+    ws.send(await encryptFrame(aesKey, TYPE_END, new Uint8Array(0)));
+
+    // wait for the WebSocket buffer to drain before closing so the receiver
+    // actually gets the end frame.
+    await waitForDrain(ws, 0);
+    ws.close();
+
+    setStatus("sent.", "ok");
+    progEl.value = 1;
+  } catch (err) {
+    setStatus("error: " + err.message, "err");
+    throw err;
+  }
+}
+
 // ---------- defensive: clear sensitive fields ----------
 // On unload (so any browser snapshot taken at unload-time sees them empty).
 addEventListener("beforeunload", () => {
@@ -588,6 +503,111 @@ addEventListener("pageshow", () => {
   $("recv-secret").value = "";
   $("recv-text").textContent = "";
 });
+
+// ============================================================
+// Supporting machinery — pure helpers from here down. Listed in
+// roughly the order they're first referenced above.
+// ============================================================
+
+// ---------- mode panel show/hide ----------
+function showPanel(id) {
+  for (const p of ["p-send-file", "p-send-text", "p-receive"]) {
+    $(p).classList.toggle("hidden", p !== id);
+  }
+}
+
+// ---------- relay socket ----------
+function relayUrl(roomId) {
+  const base = RELAY_URL.trim().replace(/\/$/, "");
+  return base + "/?room=" + encodeURIComponent(roomId);
+}
+
+function connectRoom(roomId) {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(relayUrl(roomId));
+    ws.binaryType = "arraybuffer";
+    ws.onopen = () => resolve(ws);
+    ws.onerror = () => reject(new Error("relay connect failed"));
+  });
+}
+
+// ---------- crypto ----------
+async function deriveKeys(secret) {
+  const enc = new TextEncoder();
+  const ikm = enc.encode(secret);
+  const baseKey = await crypto.subtle.importKey(
+    "raw", ikm, "HKDF", false, ["deriveBits"],
+  );
+  const roomBits = await crypto.subtle.deriveBits(
+    { name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0), info: enc.encode("transfer-room-v1") },
+    baseKey, 128,
+  );
+  const keyBits = await crypto.subtle.deriveBits(
+    { name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0), info: enc.encode("transfer-key-v1") },
+    baseKey, 256,
+  );
+  const aesKey = await crypto.subtle.importKey(
+    "raw", keyBits, { name: "AES-GCM" }, false, ["encrypt", "decrypt"],
+  );
+  return { roomId: bufToB64u(roomBits), aesKey };
+}
+
+async function encryptFrame(aesKey, type, plaintext) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv }, aesKey, plaintext,
+  ));
+  const out = new Uint8Array(1 + 12 + ct.byteLength);
+  out[0] = type;
+  out.set(iv, 1);
+  out.set(ct, 13);
+  return out;
+}
+
+async function decryptFrame(aesKey, frame) {
+  if (frame.byteLength < 13) throw new Error("frame too short");
+  const type = frame[0];
+  const iv = frame.slice(1, 13);
+  const ct = frame.slice(13);
+  const pt = new Uint8Array(await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv }, aesKey, ct,
+  ));
+  return { type, plaintext: pt };
+}
+
+function generateSecret() {
+  return bufToB64u(crypto.getRandomValues(new Uint8Array(SECRET_BYTES)));
+}
+
+// ---------- base64url helpers ----------
+function bufToB64u(buf) {
+  const b = new Uint8Array(buf);
+  let s = "";
+  for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function b64uToBuf(s) {
+  s = s.replace(/-/g, "+").replace(/_/g, "/");
+  while (s.length % 4) s += "=";
+  const bin = atob(s);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+// ---------- small utilities ----------
+async function waitForDrain(ws, threshold) {
+  while (ws.bufferedAmount > threshold) {
+    await new Promise((r) => setTimeout(r, 25));
+  }
+}
+
+function fmtSize(n) {
+  if (n >= 1024 * 1024 * 1024) return (n / (1024 * 1024 * 1024)).toFixed(2) + " GiB";
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + " MiB";
+  if (n >= 1024) return (n / 1024).toFixed(0) + " KiB";
+  return n + " B";
+}
 </script>
 </body>
 </html>
