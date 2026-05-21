@@ -123,6 +123,12 @@
 
 <script type="module">
 // ---------- configuration ----------
+// Default relay. It sees only ciphertext + an opaque room ID, so you don't
+// have to trust it — but you can host your own (see `relay.ts`). Override
+// with ?relay=... in the URL.
+const RELAY_URL = new URLSearchParams(location.search).get("relay")
+  || "wss://davidbludlow-transfer-html-relay.fly.dev/";
+
 // Wire-protocol frame types (see CLAUDE.md "Wire protocol invariants").
 const TYPE_META = 1;
 const TYPE_CHUNK = 2;
@@ -137,13 +143,6 @@ const PEER_WAIT_TIMEOUT_MS = 90 * 1000;
 // Without the cap, a fast disk + slow uplink would queue the entire file in
 // the WebSocket send buffer (effectively re-loading it into RAM).
 const WS_BUFFER_HIGH = 4 * 1024 * 1024;
-
-// Default relay; override at load time with ?relay=... in the URL.
-let RELAY_URL = "wss://davidbludlow-transfer-html-relay.fly.dev/";
-{
-  const override = new URLSearchParams(location.search).get("relay");
-  if (override) RELAY_URL = override;
-}
 
 // Shorthand for document.getElementById. NOT jQuery — just a one-character
 // alias so the DOM-touching parts of this file stay readable.
