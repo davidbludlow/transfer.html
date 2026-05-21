@@ -55,7 +55,7 @@ sha256sum transfer.html
 The current expected hash, for the version of `transfer.html` checked into this commit:
 
 ```
-f2d706279972051f6f5f331203972909cbd3e8e30c0a1eae37857ca4d0e237d6  transfer.html
+f134043d190ff402cf657085d9d948c26632cdc60ac7f8146da0985a0f0861ce  transfer.html
 ```
 
 If your local copy's hash matches this value, you have the same bytes I (the maintainer) intend to ship. If it doesn't, something has changed — could be a legitimate update from the repo, could be tampering. Investigate before using.

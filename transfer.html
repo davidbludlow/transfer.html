@@ -123,9 +123,10 @@
 
 <script type="module">
 // ---------- configuration ----------
-// Default relay. It sees only ciphertext + an opaque room ID, so you don't
-// have to trust it — but you can host your own (see `relay.ts`). Override
-// with ?relay=... in the URL.
+
+/** Relay server URL. You don't need to trust the server at all because it sees
+ * only ciphertext (encrypted data) and an opaque room ID, but you can host your
+ * own server (see `relay.ts`). Override with ?relay=... in the URL. */
 const RELAY_URL = new URLSearchParams(location.search).get("relay")
   || "wss://davidbludlow-transfer-html-relay.fly.dev/";
 
@@ -148,21 +149,13 @@ const WS_BUFFER_HIGH = 4 * 1024 * 1024;
 // alias so the DOM-touching parts of this file stay readable.
 const $ = (id) => document.getElementById(id);
 
-// ============================================================
-// Layout: configuration is above. Below is the user-action flow —
-// click handlers, sendData, page lifecycle hooks. The supporting
-// machinery (crypto, base64, panel show/hide, relay-socket helpers)
-// lives at the bottom of this script block; function hoisting lets
-// the flow above call those helpers despite their source position.
-// ============================================================
-
 // ---------- mode buttons ----------
 $("m-send-file").onclick = () => showPanel("p-send-file");
 $("m-send-text").onclick = () => showPanel("p-send-text");
 $("m-receive").onclick = () => showPanel("p-receive");
 
-// ---------- send file ----------
-$("file-go").onclick = async () => {
+// ---------- send file button ----------
+$("file-go").onclick = async function sendFile() {
   const f = $("file-input").files[0];
   if (!f) {
     $("file-status").textContent = "pick a file first.";
@@ -193,7 +186,7 @@ $("file-go").onclick = async () => {
 };
 
 // ---------- send text ----------
-$("text-go").onclick = async () => {
+$("text-go").onclick = async function sendText() {
   const ta = $("text-input");
   const text = ta.value;
   if (!text) {
@@ -227,7 +220,7 @@ $("text-go").onclick = async () => {
 };
 
 // ---------- receive ----------
-$("recv-go").onclick = async () => {
+$("recv-go").onclick = async function receive() {
   const secret = $("recv-secret").value.trim();
   if (!secret) {
     $("recv-status").textContent = "paste a code first.";
@@ -367,7 +360,7 @@ $("recv-go").onclick = async () => {
 };
 
 // ---------- text-mode receive: copy & clear ----------
-$("recv-text-copy").onclick = async () => {
+$("recv-text-copy").onclick = async function receiveTextCopy() {
   const text = $("recv-text").textContent;
   try {
     await navigator.clipboard.writeText(text);
