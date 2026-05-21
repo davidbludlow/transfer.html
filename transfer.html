@@ -52,29 +52,29 @@
 <fieldset>
   <legend>mode</legend>
   <div class="row">
-    <button id="m-send-file">send file</button>
-    <button id="m-send-text">send text</button>
-    <button id="m-receive">receive</button>
+    <button id="send-file-mode">send file</button>
+    <button id="send-text-mode">send text</button>
+    <button id="receive-mode">receive</button>
   </div>
 </fieldset>
 
 <!-- send file panel -->
-<fieldset id="p-send-file" class="hidden">
+<fieldset id="send-file-panel" class="hidden">
   <legend>send file</legend>
   <div><input id="file-input" type="file"></div>
   <div class="row" style="margin-top:0.5em">
-    <button id="file-go">send</button>
+    <button id="send-file-button">send</button>
     <span id="file-status" class="status"></span>
   </div>
   <div id="file-secret-wrap" class="hidden">
     <p>share this code with the recipient:</p>
     <div id="file-secret" class="secret"></div>
   </div>
-  <progress id="file-prog" class="hidden" max="1" value="0"></progress>
+  <progress id="file-progress" class="hidden" max="1" value="0"></progress>
 </fieldset>
 
 <!-- send text panel -->
-<fieldset id="p-send-text" class="hidden">
+<fieldset id="send-text-panel" class="hidden">
   <legend>send text</legend>
   <textarea id="text-input"
             autocomplete="off" autocorrect="off" autocapitalize="off"
@@ -87,37 +87,37 @@
     clipboard-history features can still capture text typed here.
   </p>
   <div class="row">
-    <button id="text-go">send</button>
+    <button id="send-text-button">send</button>
     <span id="text-status" class="status"></span>
   </div>
   <div id="text-secret-wrap" class="hidden">
     <p>share this code with the recipient:</p>
     <div id="text-secret" class="secret"></div>
   </div>
-  <progress id="text-prog" class="hidden" max="1" value="0"></progress>
+  <progress id="text-progress" class="hidden" max="1" value="0"></progress>
 </fieldset>
 
 <!-- receive panel -->
-<fieldset id="p-receive" class="hidden">
+<fieldset id="receive-panel" class="hidden">
   <legend>receive</legend>
   <div class="row">
-    <input id="recv-secret" type="text"
+    <input id="receive-secret-input" type="text"
            autocomplete="off" autocorrect="off" autocapitalize="off"
            spellcheck="false" data-form-type="other"
            placeholder="paste code">
-    <button id="recv-go">receive</button>
+    <button id="receive-button">receive</button>
   </div>
-  <div id="recv-status" class="status"></div>
-  <progress id="recv-prog" class="hidden" max="1" value="0"></progress>
-  <div id="recv-text-wrap" class="hidden">
-    <pre id="recv-text"></pre>
+  <div id="receive-status" class="status"></div>
+  <progress id="receive-progress" class="hidden" max="1" value="0"></progress>
+  <div id="received-text-wrap" class="hidden">
+    <pre id="received-text"></pre>
     <div class="row">
-      <button id="recv-text-copy">copy &amp; clear</button>
+      <button id="received-text-copy-button">copy &amp; clear</button>
     </div>
   </div>
-  <div id="recv-file-wrap" class="hidden">
-    <p id="recv-file-info"></p>
-    <button id="recv-file-save">save again</button>
+  <div id="received-file-wrap" class="hidden">
+    <p id="received-file-info"></p>
+    <button id="received-file-save-button">save again</button>
   </div>
 </fieldset>
 
@@ -130,14 +130,14 @@
 const RELAY_URL = new URLSearchParams(location.search).get("relay")
   || "wss://davidbludlow-transfer-html-relay.fly.dev/";
 
+const CHUNK_SIZE = 64 * 1024;
+const SECRET_BYTES = 32; // 256 bits — matches AES-256 entropy so Grover gives the same 128-bit post-quantum strength as the cipher itself.
+const PEER_WAIT_TIMEOUT_MS = 90 * 1000;
+
 // Wire-protocol frame types (see CLAUDE.md "Wire protocol invariants").
 const TYPE_META = 1;
 const TYPE_CHUNK = 2;
 const TYPE_END = 3;
-
-const CHUNK_SIZE = 64 * 1024;
-const SECRET_BYTES = 32; // 256 bits — matches AES-256 entropy so Grover gives the same 128-bit post-quantum strength as the cipher itself.
-const PEER_WAIT_TIMEOUT_MS = 90 * 1000;
 
 // Backpressure threshold for ws.bufferedAmount. The send loop pauses while
 // the buffer is above this and resumes when it drops back to or below it.
@@ -149,52 +149,60 @@ const WS_BUFFER_HIGH = 4 * 1024 * 1024;
 // alias so the DOM-touching parts of this file stay readable.
 const $ = (id) => document.getElementById(id);
 
+// ============================================================
+// Layout: configuration is above. Below is the user-action flow —
+// click handlers, sendData, page lifecycle hooks. The supporting
+// machinery (crypto, base64, panel show/hide, relay-socket helpers)
+// lives at the bottom of this script block; function hoisting lets
+// the flow above call those helpers despite their source position.
+// ============================================================
+
 // ---------- mode buttons ----------
-$("m-send-file").onclick = () => showPanel("p-send-file");
-$("m-send-text").onclick = () => showPanel("p-send-text");
-$("m-receive").onclick = () => showPanel("p-receive");
+$("send-file-mode").onclick = () => showPanel("send-file-panel");
+$("send-text-mode").onclick = () => showPanel("send-text-panel");
+$("receive-mode").onclick = () => showPanel("receive-panel");
 
 // ---------- send file button ----------
-$("file-go").onclick = async function sendFile() {
-  const f = $("file-input").files[0];
-  if (!f) {
+$("send-file-button").onclick = async function sendFile() {
+  const file = $("file-input").files[0];
+  if (!file) {
     $("file-status").textContent = "pick a file first.";
     $("file-status").className = "status err";
     return;
   }
-  $("file-go").disabled = true;
+  $("send-file-button").disabled = true;
   try {
     // Pass the File directly so sendData streams it chunk-by-chunk via
     // slice() without ever holding the whole payload in RAM.
     await sendData(
-      { type: "file", name: f.name, size: f.size },
-      f,
+      { type: "file", name: file.name, size: file.size },
+      file,
       $("file-status"),
       $("file-secret"),
       $("file-secret-wrap"),
-      $("file-prog"),
+      $("file-progress"),
     );
-  } catch (err) {
+  } catch (error) {
     // sendData sets its own error status; only overwrite if nothing was set.
     if (!$("file-status").className.includes("err")) {
-      $("file-status").textContent = "error: " + err.message;
+      $("file-status").textContent = "error: " + error.message;
       $("file-status").className = "status err";
     }
   } finally {
-    $("file-go").disabled = false;
+    $("send-file-button").disabled = false;
   }
 };
 
 // ---------- send text ----------
-$("text-go").onclick = async function sendText() {
-  const ta = $("text-input");
-  const text = ta.value;
+$("send-text-button").onclick = async function sendText() {
+  const textarea = $("text-input");
+  const text = textarea.value;
   if (!text) {
     $("text-status").textContent = "type some text first.";
     $("text-status").className = "status err";
     return;
   }
-  $("text-go").disabled = true;
+  $("send-text-button").disabled = true;
   try {
     const bytes = new TextEncoder().encode(text);
     // Wrap in a Blob so it presents the same { size, slice } shape as a File.
@@ -205,39 +213,39 @@ $("text-go").onclick = async function sendText() {
       $("text-status"),
       $("text-secret"),
       $("text-secret-wrap"),
-      $("text-prog"),
+      $("text-progress"),
     );
     // wipe textarea — not perfect, but helps
-    ta.value = "";
-  } catch (err) {
+    textarea.value = "";
+  } catch (error) {
     if (!$("text-status").className.includes("err")) {
-      $("text-status").textContent = "error: " + err.message;
+      $("text-status").textContent = "error: " + error.message;
       $("text-status").className = "status err";
     }
   } finally {
-    $("text-go").disabled = false;
+    $("send-text-button").disabled = false;
   }
 };
 
 // ---------- receive ----------
-$("recv-go").onclick = async function receive() {
-  const secret = $("recv-secret").value.trim();
+$("receive-button").onclick = async function receive() {
+  const secret = $("receive-secret-input").value.trim();
   if (!secret) {
-    $("recv-status").textContent = "paste a code first.";
-    $("recv-status").className = "status err";
+    $("receive-status").textContent = "paste a code first.";
+    $("receive-status").className = "status err";
     return;
   }
   // clear the input — we don't want it sticking around
-  $("recv-secret").value = "";
-  $("recv-go").disabled = true;
-  $("recv-text-wrap").classList.add("hidden");
-  $("recv-file-wrap").classList.add("hidden");
-  $("recv-prog").classList.remove("hidden");
-  $("recv-prog").value = 0;
+  $("receive-secret-input").value = "";
+  $("receive-button").disabled = true;
+  $("received-text-wrap").classList.add("hidden");
+  $("received-file-wrap").classList.add("hidden");
+  $("receive-progress").classList.remove("hidden");
+  $("receive-progress").value = 0;
 
-  const setStatus = (msg, cls = "") => {
-    $("recv-status").textContent = msg;
-    $("recv-status").className = "status " + cls;
+  const setStatus = (message, cssClass = "") => {
+    $("receive-status").textContent = message;
+    $("receive-status").className = "status " + cssClass;
   };
 
   try {
@@ -288,15 +296,15 @@ $("recv-go").onclick = async function receive() {
             chunks.push(plaintext);
             received += plaintext.byteLength;
             if (metadata && metadata.size > 0) {
-              $("recv-prog").value = received / metadata.size;
+              $("receive-progress").value = received / metadata.size;
             }
           } else if (type === TYPE_END) {
             done = true;
             resolve();
           }
-        }).catch((err) => {
+        }).catch((error) => {
           if (waitTimer) clearTimeout(waitTimer);
-          reject(err);
+          reject(error);
         });
       };
       ws.onclose = async () => {
@@ -328,8 +336,8 @@ $("recv-go").onclick = async function receive() {
       // Text payloads are small; assembling into one buffer for decode is fine.
       const blob = new Blob(chunks);
       const text = new TextDecoder().decode(await blob.arrayBuffer());
-      $("recv-text").textContent = text;
-      $("recv-text-wrap").classList.remove("hidden");
+      $("received-text").textContent = text;
+      $("received-text-wrap").classList.remove("hidden");
       setStatus("text received.", "ok");
     } else {
       // Pass the array of chunks directly to Blob — the browser allocates
@@ -338,56 +346,57 @@ $("recv-go").onclick = async function receive() {
       // at exactly 2 GiB.
       const blob = new Blob(chunks, { type: "application/octet-stream" });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = metadata.name || "received.bin";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      $("recv-file-info").textContent = `received: ${metadata.name} (${received} bytes)`;
-      $("recv-file-save").onclick = () => a.click();
-      $("recv-file-wrap").classList.remove("hidden");
+      const downloadLink = document.createElement("a");
+      downloadLink.href = url;
+      downloadLink.download = metadata.name || "received.bin";
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+      $("received-file-info").textContent = `received: ${metadata.name} (${received} bytes)`;
+      $("received-file-save-button").onclick = () => downloadLink.click();
+      $("received-file-wrap").classList.remove("hidden");
       // keep URL alive for re-save; revoke on navigation
       addEventListener("beforeunload", () => URL.revokeObjectURL(url), { once: true });
       setStatus("file received.", "ok");
     }
-    $("recv-prog").value = 1;
-  } catch (err) {
-    setStatus("error: " + err.message, "err");
+    $("receive-progress").value = 1;
+  } catch (error) {
+    setStatus("error: " + error.message, "err");
   } finally {
-    $("recv-go").disabled = false;
+    $("receive-button").disabled = false;
   }
 };
 
 // ---------- text-mode receive: copy & clear ----------
-$("recv-text-copy").onclick = async function receiveTextCopy() {
-  const text = $("recv-text").textContent;
+$("received-text-copy-button").onclick = async function receiveTextCopy() {
+  const text = $("received-text").textContent;
   try {
     await navigator.clipboard.writeText(text);
   } catch { /* clipboard may be unavailable on file:// */ }
-  $("recv-text").textContent = "";
-  $("recv-text-wrap").classList.add("hidden");
+  $("received-text").textContent = "";
+  $("received-text-wrap").classList.add("hidden");
 };
 
 // ---------- send: encrypt + stream + close ----------
-// Called from the file-go and text-go handlers above. `source` is a Blob (or
-// File, which extends Blob). Streaming: we read one chunk at a time via
-// source.slice(off, off+CHUNK).arrayBuffer() so we never hold the whole
-// payload in memory. Avoids the ~2 GiB sender ceiling that a single
-// f.arrayBuffer() would hit, and keeps each read small enough that Firefox's
-// silent-truncation bug (Blob.arrayBuffer() above ~2 GiB) can't bite.
-async function sendData(metadata, source, statusEl, secretEl, secretWrapEl, progEl) {
-  const setStatus = (msg, cls = "") => {
-    statusEl.textContent = msg;
-    statusEl.className = "status " + cls;
+// Called from the send-file-button and send-text-button handlers above.
+// `source` is a Blob (or File, which extends Blob). Streaming: we read one
+// chunk at a time via source.slice(off, off+CHUNK).arrayBuffer() so we never
+// hold the whole payload in memory. Avoids the ~2 GiB sender ceiling that a
+// single source.arrayBuffer() would hit, and keeps each read small enough
+// that Firefox's silent-truncation bug (Blob.arrayBuffer() above ~2 GiB)
+// can't bite.
+async function sendData(metadata, source, statusElement, secretElement, secretWrapperElement, progressElement) {
+  const setStatus = (message, cssClass = "") => {
+    statusElement.textContent = message;
+    statusElement.className = "status " + cssClass;
   };
 
   // Reset any UI from a previous send on this page so the prior secret
   // isn't briefly visible while the new one is being derived.
-  secretEl.textContent = "";
-  secretWrapEl.classList.add("hidden");
-  progEl.classList.add("hidden");
-  progEl.value = 0;
+  secretElement.textContent = "";
+  secretWrapperElement.classList.add("hidden");
+  progressElement.classList.add("hidden");
+  progressElement.value = 0;
 
   try {
     const secret = generateSecret();
@@ -396,8 +405,8 @@ async function sendData(metadata, source, statusEl, secretEl, secretWrapEl, prog
     setStatus("connecting to relay...");
     const ws = await connectRoom(roomId);
 
-    secretEl.textContent = secret;
-    secretWrapEl.classList.remove("hidden");
+    secretElement.textContent = secret;
+    secretWrapperElement.classList.remove("hidden");
     setStatus("waiting for receiver...");
 
     // wait for peer-ready event (with timeout)
@@ -409,8 +418,8 @@ async function sendData(metadata, source, statusEl, secretEl, secretWrapEl, prog
       ws.onmessage = (e) => {
         if (typeof e.data === "string") {
           try {
-            const obj = JSON.parse(e.data);
-            if (obj.ev === "peer") {
+            const parsed = JSON.parse(e.data);
+            if (parsed.ev === "peer") {
               clearTimeout(timer);
               resolve();
             }
@@ -427,7 +436,7 @@ async function sendData(metadata, source, statusEl, secretEl, secretWrapEl, prog
       };
     });
 
-    progEl.classList.remove("hidden");
+    progressElement.classList.remove("hidden");
 
     // metadata frame
     const metaBytes = new TextEncoder().encode(JSON.stringify(metadata));
@@ -439,14 +448,14 @@ async function sendData(metadata, source, statusEl, secretEl, secretWrapEl, prog
     let lastUiUpdate = 0;
     while (sent < total) {
       const end = Math.min(sent + CHUNK_SIZE, total);
-      const expectedLen = end - sent;
+      const expectedLength = end - sent;
       const sliceBytes = new Uint8Array(await source.slice(sent, end).arrayBuffer());
       // Defensive: a per-chunk truncation would be a browser bug, but if it
       // ever happens we want to abort instead of transmitting a metadata
       // header that doesn't match what's been sent.
-      if (sliceBytes.byteLength !== expectedLen) {
+      if (sliceBytes.byteLength !== expectedLength) {
         throw new Error(
-          `read ${sliceBytes.byteLength} bytes from offset ${sent}, expected ${expectedLen}`,
+          `read ${sliceBytes.byteLength} bytes from offset ${sent}, expected ${expectedLength}`,
         );
       }
       await waitForDrain(ws, WS_BUFFER_HIGH);
@@ -455,7 +464,7 @@ async function sendData(metadata, source, statusEl, secretEl, secretWrapEl, prog
 
       const now = performance.now();
       if (now - lastUiUpdate > 100 || sent === total) {
-        progEl.value = total === 0 ? 1 : sent / total;
+        progressElement.value = total === 0 ? 1 : sent / total;
         setStatus(`sending — ${fmtSize(sent)} / ${fmtSize(total)}`);
         lastUiUpdate = now;
       }
@@ -470,10 +479,10 @@ async function sendData(metadata, source, statusEl, secretEl, secretWrapEl, prog
     ws.close();
 
     setStatus("sent.", "ok");
-    progEl.value = 1;
-  } catch (err) {
-    setStatus("error: " + err.message, "err");
-    throw err;
+    progressElement.value = 1;
+  } catch (error) {
+    setStatus("error: " + error.message, "err");
+    throw error;
   }
 }
 
@@ -482,17 +491,17 @@ async function sendData(metadata, source, statusEl, secretEl, secretWrapEl, prog
 addEventListener("beforeunload", () => {
   $("file-input").value = "";
   $("text-input").value = "";
-  $("recv-secret").value = "";
-  $("recv-text").textContent = "";
+  $("receive-secret-input").value = "";
+  $("received-text").textContent = "";
 });
 // On every page show (covers initial load, refresh, and bfcache restore —
 // browser session-restore can otherwise repopulate the file input,
-// textarea, and recv-secret with what they had before navigation).
+// textarea, and the receive-secret-input with what they had before navigation).
 addEventListener("pageshow", () => {
   $("file-input").value = "";
   $("text-input").value = "";
-  $("recv-secret").value = "";
-  $("recv-text").textContent = "";
+  $("receive-secret-input").value = "";
+  $("received-text").textContent = "";
 });
 
 // ============================================================
@@ -502,7 +511,7 @@ addEventListener("pageshow", () => {
 
 // ---------- mode panel show/hide ----------
 function showPanel(id) {
-  for (const p of ["p-send-file", "p-send-text", "p-receive"]) {
+  for (const p of ["send-file-panel", "send-text-panel", "receive-panel"]) {
     $(p).classList.toggle("hidden", p !== id);
   }
 }
@@ -540,18 +549,18 @@ async function deriveKeys(secret) {
   const aesKey = await crypto.subtle.importKey(
     "raw", keyBits, { name: "AES-GCM" }, false, ["encrypt", "decrypt"],
   );
-  return { roomId: bufToB64u(roomBits), aesKey };
+  return { roomId: bufferToBase64Url(roomBits), aesKey };
 }
 
 async function encryptFrame(aesKey, type, plaintext) {
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ct = new Uint8Array(await crypto.subtle.encrypt(
+  const ciphertext = new Uint8Array(await crypto.subtle.encrypt(
     { name: "AES-GCM", iv }, aesKey, plaintext,
   ));
-  const out = new Uint8Array(1 + 12 + ct.byteLength);
+  const out = new Uint8Array(1 + 12 + ciphertext.byteLength);
   out[0] = type;
   out.set(iv, 1);
-  out.set(ct, 13);
+  out.set(ciphertext, 13);
   return out;
 }
 
@@ -559,37 +568,37 @@ async function decryptFrame(aesKey, frame) {
   if (frame.byteLength < 13) throw new Error("frame too short");
   const type = frame[0];
   const iv = frame.slice(1, 13);
-  const ct = frame.slice(13);
-  const pt = new Uint8Array(await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv }, aesKey, ct,
+  const ciphertext = frame.slice(13);
+  const plaintext = new Uint8Array(await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv }, aesKey, ciphertext,
   ));
-  return { type, plaintext: pt };
+  return { type, plaintext };
 }
 
 function generateSecret() {
-  return bufToB64u(crypto.getRandomValues(new Uint8Array(SECRET_BYTES)));
+  return bufferToBase64Url(crypto.getRandomValues(new Uint8Array(SECRET_BYTES)));
 }
 
 // ---------- base64url helpers ----------
-function bufToB64u(buf) {
-  const b = new Uint8Array(buf);
-  let s = "";
-  for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
-  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+function bufferToBase64Url(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let out = "";
+  for (let i = 0; i < bytes.length; i++) out += String.fromCharCode(bytes[i]);
+  return btoa(out).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 // ---------- small utilities ----------
 async function waitForDrain(ws, threshold) {
   while (ws.bufferedAmount > threshold) {
-    await new Promise((r) => setTimeout(r, 25));
+    await new Promise((resolve) => setTimeout(resolve, 25));
   }
 }
 
-function fmtSize(n) {
-  if (n >= 1024 * 1024 * 1024) return (n / (1024 * 1024 * 1024)).toFixed(2) + " GiB";
-  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + " MiB";
-  if (n >= 1024) return (n / 1024).toFixed(0) + " KiB";
-  return n + " B";
+function fmtSize(bytes) {
+  if (bytes >= 1024 * 1024 * 1024) return (bytes / (1024 * 1024 * 1024)).toFixed(2) + " GiB";
+  if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + " MiB";
+  if (bytes >= 1024) return (bytes / 1024).toFixed(0) + " KiB";
+  return bytes + " B";
 }
 </script>
 </body>

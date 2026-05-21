@@ -43,19 +43,19 @@ async function oneTransfer(browser: any, idx: number): Promise<{ ok: boolean; ms
     const receiver = await ctx.newPage();
     await receiver.addInitScript(INSTRUMENTATION);
     await receiver.goto(URL_WITH_RELAY);
-    await receiver.locator("#m-receive").click();
+    await receiver.locator("#receive-mode").click();
 
     const fp = await makeSparseFile(`par-${idx}-${SIZE_MB}m.bin`, SIZE_MB * 1024 * 1024);
     await sender.setInputFiles("#file-input", fp);
-    await sender.locator("#file-go").click();
+    await sender.locator("#send-file-button").click();
     await sender.locator("#file-secret").filter({ hasNotText: "" }).waitFor({ timeout: 60 * 1000 });
     const secret = ((await sender.locator("#file-secret").textContent()) || "").trim();
 
-    await receiver.locator("#recv-secret").fill(secret);
-    await receiver.locator("#recv-go").click();
-    await expect(receiver.locator("#recv-status")).toHaveClass(/ok|err/, { timeout: 30 * 60 * 1000 });
-    const cls = (await receiver.locator("#recv-status").getAttribute("class")) || "";
-    const status = await receiver.locator("#recv-status").textContent();
+    await receiver.locator("#receive-secret-input").fill(secret);
+    await receiver.locator("#receive-button").click();
+    await expect(receiver.locator("#receive-status")).toHaveClass(/ok|err/, { timeout: 30 * 60 * 1000 });
+    const cls = (await receiver.locator("#receive-status").getAttribute("class")) || "";
+    const status = await receiver.locator("#receive-status").textContent();
     return { ok: cls.includes("ok"), ms: Date.now() - t0, status };
   } catch (err: any) {
     return { ok: false, ms: Date.now() - t0, status: `exception: ${err.message}` };

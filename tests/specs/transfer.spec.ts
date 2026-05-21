@@ -20,8 +20,8 @@ test.describe("baseline behaviour", () => {
       const secret = await startSend(sender, file);
       await startReceive(receiver, secret);
 
-      await expect(receiver.locator("#recv-status")).toHaveClass(/ok/);
-      await expect(receiver.locator("#recv-file-info")).toContainText(
+      await expect(receiver.locator("#receive-status")).toHaveClass(/ok/);
+      await expect(receiver.locator("#received-file-info")).toContainText(
         `(${size} bytes)`,
       );
       expect(await receivedBytes(receiver)).toBe(size);
@@ -43,7 +43,7 @@ test.describe("baseline behaviour", () => {
       const secret = await startSend(sender, file);
       await startReceive(receiver, secret);
 
-      await expect(receiver.locator("#recv-status")).toHaveClass(/ok/, {
+      await expect(receiver.locator("#receive-status")).toHaveClass(/ok/, {
         timeout: 120 * 1000,
       });
       expect(await receivedBytes(receiver)).toBe(size);
@@ -61,9 +61,9 @@ test.describe("baseline behaviour", () => {
       const text = "héllo 🌍 こんにちは — line two\nline three";
 
       // Switch sender to text mode and submit.
-      await sender.locator("#m-send-text").click();
+      await sender.locator("#send-text-mode").click();
       await sender.locator("#text-input").fill(text);
-      await sender.locator("#text-go").click();
+      await sender.locator("#send-text-button").click();
       await sender
         .locator("#text-secret")
         .filter({ hasNotText: "" })
@@ -72,11 +72,11 @@ test.describe("baseline behaviour", () => {
         (await sender.locator("#text-secret").textContent()) || ""
       ).trim();
 
-      await receiver.locator("#recv-secret").fill(secret);
-      await receiver.locator("#recv-go").click();
+      await receiver.locator("#receive-secret-input").fill(secret);
+      await receiver.locator("#receive-button").click();
 
-      await expect(receiver.locator("#recv-status")).toHaveClass(/ok/);
-      await expect(receiver.locator("#recv-text")).toHaveText(text);
+      await expect(receiver.locator("#receive-status")).toHaveClass(/ok/);
+      await expect(receiver.locator("#received-text")).toHaveText(text);
     } finally {
       await ctx.close();
     }
@@ -101,12 +101,12 @@ test.describe("baseline behaviour", () => {
         const secret = await startSend(sender, file);
         await startReceive(receiver, secret);
 
-        await expect(receiver.locator("#recv-status")).toHaveClass(/ok|err/, {
+        await expect(receiver.locator("#receive-status")).toHaveClass(/ok|err/, {
           timeout: 55 * 60 * 1000,
         });
-        const status = await receiver.locator("#recv-status").textContent();
+        const status = await receiver.locator("#receive-status").textContent();
         const cls = await receiver
-          .locator("#recv-status")
+          .locator("#receive-status")
           .getAttribute("class");
         const project = test.info().project.name;
         console.log(`    [${project}] ${sizeGiB} GiB → ${cls}: ${status}`);
@@ -150,8 +150,8 @@ test.describe("baseline behaviour", () => {
       const secret = await startSend(sender, file);
       await startReceive(receiver, secret);
 
-      await expect(receiver.locator("#recv-status")).toHaveClass(/err/);
-      await expect(receiver.locator("#recv-status")).toContainText(
+      await expect(receiver.locator("#receive-status")).toHaveClass(/err/);
+      await expect(receiver.locator("#receive-status")).toContainText(
         "incomplete transfer",
       );
     } finally {

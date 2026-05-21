@@ -57,13 +57,13 @@ test.describe("deployed Fly relay (smarter-relay: Node + ws backpressure)", () =
         const receiver = await ctx.newPage();
         await receiver.addInitScript(INSTRUMENTATION);
         await receiver.goto(URL_WITH_RELAY);
-        await receiver.locator("#m-receive").click();
+        await receiver.locator("#receive-mode").click();
 
         const size = sizeMiB * 1024 * 1024;
         const fp = await makeSparseFile(`dep-main-${sizeMiB}m.bin`, size);
 
         await sender.setInputFiles("#file-input", fp);
-        await sender.locator("#file-go").click();
+        await sender.locator("#send-file-button").click();
         await sender
           .locator("#file-secret")
           .filter({ hasNotText: "" })
@@ -71,15 +71,15 @@ test.describe("deployed Fly relay (smarter-relay: Node + ws backpressure)", () =
         const secret =
           ((await sender.locator("#file-secret").textContent()) || "").trim();
 
-        await receiver.locator("#recv-secret").fill(secret);
-        await receiver.locator("#recv-go").click();
+        await receiver.locator("#receive-secret-input").fill(secret);
+        await receiver.locator("#receive-button").click();
 
-        await expect(receiver.locator("#recv-status")).toHaveClass(/ok|err/, {
+        await expect(receiver.locator("#receive-status")).toHaveClass(/ok|err/, {
           timeout: 55 * 60 * 1000,
         });
         const cls =
-          (await receiver.locator("#recv-status").getAttribute("class")) || "";
-        const status = await receiver.locator("#recv-status").textContent();
+          (await receiver.locator("#receive-status").getAttribute("class")) || "";
+        const status = await receiver.locator("#receive-status").textContent();
         console.log(`    smarter-relay ${sizeLabel} → ${cls}: ${status}`);
       } finally {
         await ctx.close();

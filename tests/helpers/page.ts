@@ -46,7 +46,7 @@ export async function newSender(ctx: BrowserContext): Promise<Page> {
   const page = await ctx.newPage();
   await page.addInitScript(INSTRUMENTATION);
   await page.goto(TRANSFER_URL);
-  await page.locator("#m-send-file").click();
+  await page.locator("#send-file-mode").click();
   return page;
 }
 
@@ -54,7 +54,7 @@ export async function newReceiver(ctx: BrowserContext): Promise<Page> {
   const page = await ctx.newPage();
   await page.addInitScript(INSTRUMENTATION);
   await page.goto(TRANSFER_URL);
-  await page.locator("#m-receive").click();
+  await page.locator("#receive-mode").click();
   return page;
 }
 
@@ -65,7 +65,7 @@ export async function startSend(
   timeoutMs = 30 * 1000,
 ): Promise<string> {
   await sender.setInputFiles("#file-input", filePath);
-  await sender.locator("#file-go").click();
+  await sender.locator("#send-file-button").click();
   await sender
     .locator("#file-secret")
     .filter({ hasNotText: "" })
@@ -74,13 +74,13 @@ export async function startSend(
 }
 
 export async function startReceive(receiver: Page, secret: string) {
-  await receiver.locator("#recv-secret").fill(secret);
-  await receiver.locator("#recv-go").click();
+  await receiver.locator("#receive-secret-input").fill(secret);
+  await receiver.locator("#receive-button").click();
 }
 
-// Read the byte count from "received: filename (N bytes)" in #recv-file-info.
+// Read the byte count from "received: filename (N bytes)" in #received-file-info.
 export async function receivedBytes(receiver: Page): Promise<number | null> {
-  const text = (await receiver.locator("#recv-file-info").textContent()) || "";
+  const text = (await receiver.locator("#received-file-info").textContent()) || "";
   const m = text.match(/\((\d+) bytes\)/);
   return m ? parseInt(m[1], 10) : null;
 }
