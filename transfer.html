@@ -132,12 +132,11 @@ const CHUNK_SIZE = 64 * 1024;
 const SECRET_BYTES = 32; // 256 bits — matches AES-256 entropy so Grover gives the same 128-bit post-quantum strength as the cipher itself.
 const PEER_WAIT_TIMEOUT_MS = 90 * 1000;
 
-// Backpressure thresholds for ws.bufferedAmount. Above HIGH the loop pauses
-// until drained below LOW. Without this, a fast disk + slow uplink would
-// queue the entire file in the WebSocket send buffer (effectively re-loading
-// it into RAM).
+// Backpressure threshold for ws.bufferedAmount. The send loop pauses while
+// the buffer is above this and resumes when it drops back to or below it.
+// Without the cap, a fast disk + slow uplink would queue the entire file in
+// the WebSocket send buffer (effectively re-loading it into RAM).
 const WS_BUFFER_HIGH = 4 * 1024 * 1024;
-const WS_BUFFER_LOW = 1 * 1024 * 1024;
 
 // Default relay; override at load time with ?relay=... in the URL.
 let RELAY_URL = "wss://davidbludlow-transfer-html-relay.fly.dev/";
@@ -585,14 +584,6 @@ function bufToB64u(buf) {
   let s = "";
   for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-function b64uToBuf(s) {
-  s = s.replace(/-/g, "+").replace(/_/g, "/");
-  while (s.length % 4) s += "=";
-  const bin = atob(s);
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
 }
 
 // ---------- small utilities ----------
