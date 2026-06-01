@@ -132,7 +132,8 @@ const RELAY_URL = new URLSearchParams(location.search).get("relay")
 
 const CHUNK_SIZE = 64 * 1024;
 const SECRET_BYTES = 32; // 256 bits — matches AES-256 entropy so Grover gives the same 128-bit post-quantum strength as the cipher itself.
-const PEER_WAIT_TIMEOUT_MS = 90 * 1000;
+const SENDER_WAIT_TIMEOUT = 20 * 60 * 1000; // 20 minutes
+const RECEIVER_WAIT_TIMEOUT = 30 * 1000; // 30 seconds
 
 // Wire-protocol frame types (see CLAUDE.md "Wire protocol invariants").
 const TYPE_META = 1;
@@ -145,8 +146,7 @@ const TYPE_END = 3;
 // the WebSocket send buffer (effectively re-loading it into RAM).
 const WS_BUFFER_HIGH = 4 * 1024 * 1024;
 
-// Shorthand for document.getElementById. NOT jQuery — just a one-character
-// alias so the DOM-touching parts of this file stay readable.
+/** This makes `$` be a shorthand for `document.getElementById`. It isn't jQuery */
 const $ = (id) => document.getElementById(id);
 
 // ============================================================
@@ -270,8 +270,8 @@ $("receive-button").onclick = async function receive() {
       // sender has started transmitting, so the wait is over).
       let waitTimer = setTimeout(() => {
         try { ws.close(); } catch { /* ignore */ }
-        reject(new Error("no sender found within 90s; check the code and try again"));
-      }, PEER_WAIT_TIMEOUT_MS);
+        reject(new Error("no sender found within 30 seconds; check the code and try again"));
+      }, RECEIVER_WAIT_TIMEOUT);
 
       // Serialize message processing. Without this, two async onmessage
       // handlers can interleave: e.g. TYPE_END's handler can call resolve()
@@ -413,8 +413,8 @@ async function sendData(metadata, source, statusElement, secretElement, secretWr
     await new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         try { ws.close(); } catch { /* ignore */ }
-        reject(new Error("no receiver joined within 90s; check the code and try again"));
-      }, PEER_WAIT_TIMEOUT_MS);
+        reject(new Error("no receiver joined within 20 minutes; check the code and try again"));
+      }, SENDER_WAIT_TIMEOUT);
       ws.onmessage = (e) => {
         if (typeof e.data === "string") {
           try {
