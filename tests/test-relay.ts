@@ -13,7 +13,7 @@ const relay = new Deno.Command("deno", {
   args: [
     "run",
     `--allow-net=0.0.0.0:${PORT}`,
-    "--allow-env=WS_NO_BUFFER_UTIL,WS_NO_UTF_8_VALIDATE,NODE_ENV",
+    "--allow-env=WS_NO_BUFFER_UTIL,WS_NO_UTF_8_VALIDATE,NODE_ENV,SIDECAR_URL,SIDECAR_TOKEN",
     "../relay.ts",
     String(PORT),
   ],

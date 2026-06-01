@@ -101,6 +101,47 @@ For quick testing without re-editing the file, you can override at load time via
 transfer.html?relay=wss://YOUR-APP-NAME.fly.dev/
 ```
 
+## Optional: monthly byte cap (sidecar)
+
+Without a cap, a sustained transfer (or a bad actor) can run up Fly egress charges with no ceiling. `worker/sidecar.js` is a Cloudflare Worker that holds a monthly byte counter in Workers KV; the relay checks it before accepting connections and reports byte deltas as the transfer proceeds. Free at any reasonable volume (well under Workers' 100K req/day and KV's 1K writes/day with a 60-second flush interval).
+
+Steps:
+
+```sh
+npm install -g wrangler
+wrangler login
+
+# Inside the repo, create a wrangler.toml that points at worker/sidecar.js.
+# Sketch (fill in the KV namespace id after the create command below):
+#
+#   name = "transfer-html-sidecar"
+#   main = "worker/sidecar.js"
+#   compatibility_date = "2026-05-31"
+#   [vars]
+#   MONTHLY_CAP_BYTES = "2500000000000"   # 2.5 TB → ~$50/mo at Fly's $0.02/GB
+#   [[kv_namespaces]]
+#   binding = "USAGE_KV"
+#   id = "<from `wrangler kv namespace create USAGE_KV`>"
+#
+# wrangler.toml is gitignored because it's per-deploy.
+
+wrangler kv namespace create USAGE_KV
+wrangler secret put REPORT_TOKEN    # any random string ≥32 chars
+wrangler deploy
+
+# Wire the relay to the sidecar (Fly secrets so they're not in fly.toml):
+fly secrets set \
+  SIDECAR_URL="https://transfer-html-sidecar.YOUR-CLOUDFLARE-ACCOUNT.workers.dev" \
+  SIDECAR_TOKEN="<same value you set as REPORT_TOKEN above>"
+
+# Add the sidecar host to relay.ts's --allow-net in the Dockerfile CMD,
+# then re-deploy:
+#   --allow-net=0.0.0.0:8080,transfer-html-sidecar.YOUR-ACCOUNT.workers.dev:443
+fly deploy
+```
+
+When the cap is hit, the relay returns WebSocket close code 1008 ("monthly cap reached") on new upgrades. The cap resets at the start of each calendar month. Sidecar unreachable → relay continues accepting connections (fail-open) and reports queue up locally to be flushed when the sidecar comes back.
+
 ## Future deploys
 
 After any change to `relay.ts` or the Dockerfile:
