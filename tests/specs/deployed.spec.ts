@@ -53,6 +53,7 @@ test.describe("deployed Fly relay (smarter-relay: Node + ws backpressure)", () =
         const sender = await ctx.newPage();
         await sender.addInitScript(INSTRUMENTATION);
         await sender.goto(URL_WITH_RELAY);
+        await sender.locator("#send-file-mode").click();
 
         const receiver = await ctx.newPage();
         await receiver.addInitScript(INSTRUMENTATION);
