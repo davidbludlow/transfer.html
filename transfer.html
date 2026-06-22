@@ -301,6 +301,10 @@ $("receive-button").onclick = async function receive() {
     $("receive-status").className = "status " + cssClass;
   };
 
+  // Keep the screen / system awake so the OS doesn't sleep mid-transfer.
+  let lock = null;
+  try { lock = await navigator.wakeLock?.request("screen"); } catch {}
+
   try {
     const { roomId, aesKey } = await deriveKeys(secret);
     setStatus("connecting to relay...");
@@ -418,6 +422,7 @@ $("receive-button").onclick = async function receive() {
   } catch (error) {
     setStatus("error: " + error.message, "err");
   } finally {
+    lock?.release();
     $("receive-button").disabled = false;
   }
 };
@@ -452,6 +457,10 @@ async function sendData(metadata, source, statusElement, secretElement, secretWr
   secretWrapperElement.classList.add("hidden");
   progressElement.classList.add("hidden");
   progressElement.value = 0;
+
+  // Keep the screen / system awake so the OS doesn't sleep mid-transfer.
+  let lock = null;
+  try { lock = await navigator.wakeLock?.request("screen"); } catch {}
 
   try {
     const secret = generateSecret();
@@ -540,6 +549,8 @@ async function sendData(metadata, source, statusElement, secretElement, secretWr
   } catch (error) {
     setStatus("error: " + error.message, "err");
     throw error;
+  } finally {
+    lock?.release();
   }
 }
 
