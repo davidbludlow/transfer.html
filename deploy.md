@@ -92,10 +92,11 @@ If the first request takes a few seconds, that's the auto-sleeping machine wakin
 
 ### 6. Point `transfer.html` at it
 
-The relay URL is hardcoded in `transfer.html` as the `RELAY_URL` constant near the top of the `<script>` block. Edit it to your deployed URL:
+The relay URL is hardcoded in `transfer.html` as the `RELAY_URL` constant near the top of the `<script>` block. Edit the default (the value after the `||`) to your deployed URL:
 
 ```js
-let RELAY_URL = "wss://YOUR-APP-NAME.fly.dev/";
+const RELAY_URL = new URLSearchParams(location.search).get("relay")
+  || "wss://YOUR-APP-NAME.fly.dev/";
 ```
 
 For quick testing without re-editing the file, you can override at load time via the `?relay=` query parameter:
