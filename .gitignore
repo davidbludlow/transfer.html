@@ -11,10 +11,9 @@ node_modules/
 # locally by `fly launch`. The maintainer's reference copy is in deploy.md.
 fly.toml
 
-# wrangler.toml is per-deploy too (Worker name, KV namespace id,
-# compatibility date, MONTHLY_CAP). Used only on the cloudflare-turn
-# experiment branches; main itself doesn't deploy a Worker. The
-# reference template lives in deploy.md step 7.
+# wrangler.toml is per-deploy (Worker name, KV namespace id,
+# compatibility date, byte cap). Used for the optional metering sidecar
+# (worker/sidecar.js). Reference template is in deploy.md.
 wrangler.toml
 
 # Playwright MCP and Playwright artifacts
