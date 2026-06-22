@@ -43,11 +43,30 @@
   .row > * { flex: 0 0 auto; }
   .row > input { flex: 1 1 auto; }
   .hidden { display: none !important; }
+  .banner {
+    border: 1px solid #e6d97a; background: #fffbe6;
+    padding: 0.6em 0.8em; margin: 1em 0; font-size: 0.9em;
+  }
+  .hint { font-size: 0.85em; color: #888; margin: 0.4em 0 0; }
+  details.about { margin: 1.5em 0 0.5em; font-size: 0.9em; color: #555; }
+  details.about summary { cursor: pointer; color: #777; }
+  details.about p { margin: 0.6em 0; }
+  details.about ul { margin: 0.4em 0; padding-left: 1.4em; }
+  details.about li { margin: 0.3em 0; }
 </style>
 </head>
 <body>
 <h1>transfer.html</h1>
 <p class="sub">end-to-end encrypted file/text transfer · <span id="version">v0.0.1</span></p>
+
+<!-- Shown only when this page is loaded over the web instead of from a downloaded
+     file:// copy (revealed by the script below). Running a local copy removes the
+     per-visit trust in whoever serves the page, so the online version points here. -->
+<div id="online-banner" class="banner hidden">
+  <strong>You're using the online version.</strong>
+  That means each time you open it, you're trusting this site to serve the real, unmodified .html file. Download it and open it from your own device, so you don't have to trust the site at all.
+  <a id="download-self" download="transfer.html" href="#">download this file</a>
+</div>
 
 <fieldset>
   <legend>mode</legend>
@@ -69,6 +88,7 @@
   <div id="file-secret-wrap" class="hidden">
     <p>share this code with the recipient:</p>
     <div id="file-secret" class="secret"></div>
+    <p class="hint">Treat the code like a password. Delete when done.</p>
   </div>
   <progress id="file-progress" class="hidden" max="1" value="0"></progress>
 </fieldset>
@@ -93,6 +113,7 @@
   <div id="text-secret-wrap" class="hidden">
     <p>share this code with the recipient:</p>
     <div id="text-secret" class="secret"></div>
+    <p class="hint">Treat the code like a password. Delete when done.</p>
   </div>
   <progress id="text-progress" class="hidden" max="1" value="0"></progress>
 </fieldset>
@@ -120,6 +141,22 @@
     <button id="received-file-save-button">save again</button>
   </div>
 </fieldset>
+
+<details class="about">
+  <summary>how this keeps your data private</summary>
+  <p>Nobody in the middle can read what you send. What arrives is exactly what was sent — any tampering makes the transfer fail instead of slipping through.</p>
+  <p>No one can spy on your data — not big companies, not hackers, not governments — as long as all three are true:</p>
+  <ul>
+    <li>The code stays between you and the recipient. Anyone who gets it can read the transfer.</li>
+    <li>Neither device has spyware — a bad browser extension, a keylogger, or other malware.</li>
+    <li>You actually send to the right person, not an impostor.</li>
+  </ul>
+  <p>You don't have to trust the servers. They see only scrambled data and a random ID — never the contents, never the code. (They can tell a transfer happened, just not what's in it.)</p>
+  <p>Even quantum computers, as we understand them today, can't crack it.</p>
+  <p>This isn't a black box you have to trust. It's one short file you can open and read — or paste into an AI like ChatGPT — to confirm it does exactly what this says.</p>
+  <p>Strongest: download the file and open it from your own device. Then you can send people the file itself.</p>
+  <p><a href="https://github.com/davidbludlow/transfer.html" rel="noreferrer">More in the README on GitHub.</a></p>
+</details>
 
 <script type="module">
 // ---------- configuration ----------
@@ -161,6 +198,17 @@ const $ = (id) => document.getElementById(id);
 $("send-file-mode").onclick = () => showPanel("send-file-panel");
 $("send-text-mode").onclick = () => showPanel("send-text-panel");
 $("receive-mode").onclick = () => showPanel("receive-panel");
+
+// ---------- online vs. local copy ----------
+// When served over the web (not opened from a downloaded file://), reveal the
+// banner that points to the stronger option: run a local copy. The download
+// link targets this page's own URL with the download attribute, so the browser
+// saves the exact served bytes (which still match the published SHA-256), not a
+// re-serialized copy of the live DOM.
+if (location.protocol !== "file:") {
+  $("online-banner").classList.remove("hidden");
+  $("download-self").href = location.href;
+}
 
 // ---------- send file button ----------
 $("send-file-button").onclick = async function sendFile() {
