@@ -1,1 +1,6 @@
-{}
+{
+  "tasks": {
+    "deploy": "fly deploy --ha=false",
+    "relay": "deno run --allow-read=transfer.html --allow-net=0.0.0.0:8080 --allow-env=WS_NO_BUFFER_UTIL,WS_NO_UTF_8_VALIDATE,NODE_ENV relay.ts"
+  }
+}

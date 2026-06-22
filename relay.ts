@@ -114,7 +114,18 @@ setInterval(() => {
   }
 }, 30_000);
 
+// Serve the client page at "/" if transfer.html is readable; otherwise stay a
+// pure relay. (ws upgrades hit the "upgrade" handler below, not this one.)
+let page = "";
+try { page = Deno.readTextFileSync("transfer.html"); } catch { /* page serving disabled */ }
+
 const server = http.createServer((req, res) => {
+  const path = req.url.split("?")[0];
+  if (page && (path === "/" || path === "/index.html" || path === "/transfer.html")) {
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+    res.end(page);
+    return;
+  }
   res.writeHead(200, { "content-type": "text/plain" });
   res.end(`transfer relay\nrooms: ${rooms.size}\n`);
 });

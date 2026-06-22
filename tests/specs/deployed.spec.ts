@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCRATCH = path.resolve(__dirname, "..", ".scratch");
 
-const DEPLOYED_RELAY = "wss://davidbludlow-transfer-html-relay.fly.dev/";
+const DEPLOYED_RELAY = "wss://transfer-html.fly.dev/";
 const URL_WITH_RELAY =
   "/transfer.html?relay=" + encodeURIComponent(DEPLOYED_RELAY);
 

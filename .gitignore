@@ -11,6 +11,10 @@ node_modules/
 # locally by `fly launch`. The maintainer's reference copy is in deploy.md.
 fly.toml
 
+# The transferhtml.fly.dev -> transfer-html.fly.dev redirect app is a tiny
+# standalone Fly deployment, intentionally kept out of the audited tree.
+redirect-app/
+
 # wrangler.toml is per-deploy (Worker name, KV namespace id,
 # compatibility date, byte cap). Used for the optional metering sidecar
 # (worker/sidecar.js). Reference template is in deploy.md.

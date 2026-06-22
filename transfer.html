@@ -47,6 +47,7 @@
     border: 1px solid #e6d97a; background: #fffbe6;
     padding: 0.6em 0.8em; margin: 1em 0; font-size: 0.9em;
   }
+  .banner a:visited { color: LinkText; } /* href is this page's own URL; otherwise renders as visited */
   .hint { font-size: 0.85em; color: #888; margin: 0.4em 0 0; }
   details.about { margin: 1.5em 0 0.5em; font-size: 0.9em; color: #555; }
   details.about summary { cursor: pointer; color: #777; }
@@ -57,15 +58,13 @@
 </head>
 <body>
 <h1>transfer.html</h1>
-<p class="sub">end-to-end encrypted file/text transfer · <span id="version">v0.0.1</span></p>
+<p class="sub">end-to-end encrypted file/text transfer · <span id="version">v0.1.0</span></p>
 
-<!-- Shown only when this page is loaded over the web instead of from a downloaded
-     file:// copy (revealed by the script below). Running a local copy removes the
-     per-visit trust in whoever serves the page, so the online version points here. -->
+<!-- Hidden by default; the script reveals it for the online (non-file://) version. -->
 <div id="online-banner" class="banner hidden">
   <strong>You're using the online version.</strong>
   That means each time you open it, you're trusting this site to serve the real, unmodified .html file. Download it and open it from your own device, so you don't have to trust the site at all.
-  <a id="download-self" download="transfer.html" href="#">download this file</a>
+  <p style="margin:0.5em 0 0"><a download="transfer.html" href="">download this page</a></p>
 </div>
 
 <fieldset>
@@ -144,17 +143,16 @@
 
 <details class="about">
   <summary>how this keeps your data private</summary>
-  <p>Nobody in the middle can read what you send. What arrives is exactly what was sent — any tampering makes the transfer fail instead of slipping through.</p>
-  <p>No one can spy on your data — not big companies, not hackers, not governments — as long as all three are true:</p>
+  <p>Nobody — companies, hackers, or governments — can read or alter what you send, as long as all three of these are true:</p>
   <ul>
     <li>The code stays between you and the recipient. Anyone who gets it can read the transfer.</li>
     <li>Neither device has spyware — a bad browser extension, a keylogger, or other malware.</li>
-    <li>You actually send to the right person, not an impostor.</li>
+    <li>You're actually sending to the right person, not an impostor.</li>
   </ul>
   <p>You don't have to trust the servers. They see only scrambled data and a random ID — never the contents, never the code. (They can tell a transfer happened, just not what's in it.)</p>
   <p>Even quantum computers, as we understand them today, can't crack it.</p>
-  <p>This isn't a black box you have to trust. It's one short file you can open and read — or paste into an AI like ChatGPT — to confirm it does exactly what this says.</p>
-  <p>Strongest: download the file and open it from your own device. Then you can send people the file itself.</p>
+  <p>This isn't a black box you have to trust. It's one short file you can open and read — or paste it into an AI like ChatGPT — to confirm it does exactly what this says.</p>
+  <p>For the most security: download the file and open it from your own device. Audit it yourself. Then you don't have to trust any servers at all.</p>
   <p><a href="https://github.com/davidbludlow/transfer.html" rel="noreferrer">More in the README on GitHub.</a></p>
 </details>
 
@@ -165,7 +163,7 @@
  * only ciphertext (encrypted data) and an opaque room ID, but you can host your
  * own server (see `relay.ts`). Override with ?relay=... in the URL. */
 const RELAY_URL = new URLSearchParams(location.search).get("relay")
-  || "wss://davidbludlow-transfer-html-relay.fly.dev/";
+  || "wss://transfer-html.fly.dev/";
 
 const CHUNK_SIZE = 64 * 1024;
 const SECRET_BYTES = 32; // 256 bits — matches AES-256 entropy so Grover gives the same 128-bit post-quantum strength as the cipher itself.
@@ -200,14 +198,10 @@ $("send-text-mode").onclick = () => showPanel("send-text-panel");
 $("receive-mode").onclick = () => showPanel("receive-panel");
 
 // ---------- online vs. local copy ----------
-// When served over the web (not opened from a downloaded file://), reveal the
-// banner that points to the stronger option: run a local copy. The download
-// link targets this page's own URL with the download attribute, so the browser
-// saves the exact served bytes (which still match the published SHA-256), not a
-// re-serialized copy of the live DOM.
+// When viewed online, reveal the download-a-copy banner. (Its link is wired
+// in HTML — empty href + download attribute saves the served bytes.)
 if (location.protocol !== "file:") {
   $("online-banner").classList.remove("hidden");
-  $("download-self").href = location.href;
 }
 
 // ---------- send file button ----------

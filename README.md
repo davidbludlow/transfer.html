@@ -10,13 +10,20 @@ End-to-end encrypted file and text transfer through a dumb relay.
 
 The HTML is a single self-contained file. No frameworks, no CDN, no fonts, no dependencies fetched at runtime. Open it from `file://` and it works.
 
-`transfer.html` is about 600 lines, all in one file. If you know JavaScript, you can audit it end-to-end in roughly an hour. If you don't want to read code, paste it into an LLM — in a few seconds it'll probably tell you it's safe to use.
+`transfer.html` is about 670 lines, all in one file. If you know JavaScript, you can audit it end-to-end in roughly an hour. If you don't want to read code, paste it into an LLM — in a few seconds it'll probably tell you it's safe to use.
 
 ## Get it
 
-[**View `transfer.html` on GitHub**](https://github.com/davidbludlow/transfer.html/blob/main/transfer.html) — once you're on the file page, click the **Download raw file** icon (in the toolbar above the file content) to save it.
+The strongest way to use this is to **download `transfer.html` and open it from your own disk** (`file://`): once it's a local file, no server can ever tamper with the code. Two ways to get the file:
 
-After saving, verify its SHA-256 against the value in [How to verify your copy of the HTML](#how-to-verify-your-copy-of-the-html) below before relying on it. Then open the local copy in any modern browser.
+- **From source (zero-trust):** [view `transfer.html` on GitHub](https://github.com/davidbludlow/transfer.html/blob/main/transfer.html) and click the **Download raw file** icon. This path doesn't depend on the relay host at all.
+- **From the online version:** open <https://transfer-html.fly.dev/> and click **download this page**. Convenient, and the download is byte-for-byte the published file — but the page itself reached you over the network, so verify the hash.
+
+Either way, verify its SHA-256 against the value under [How to verify your copy of the HTML](#how-to-verify-your-copy-of-the-html) before relying on it, then open the local copy in any modern browser.
+
+## Use it online
+
+<https://transfer-html.fly.dev/> runs the same tool in the browser with nothing to download — handy on a phone, or for a recipient who can't save a file. The tradeoff: loading it from a website means trusting that site, on each visit, to serve the real, unmodified code — the MITM-of-JavaScript risk that a downloaded local copy avoids. For anything sensitive, prefer a downloaded copy.
 
 ## Why this design
 
@@ -40,7 +47,7 @@ What protects against each:
 ## Files
 
 - `transfer.html` — the entire client. Open in any modern browser via `file://`.
-- `relay.ts` — the WebSocket forwarder. ~130 lines of Deno; uses `npm:ws` for proper backpressure.
+- `relay.ts` — the WebSocket forwarder. ~225 lines of Deno; uses `npm:ws` for proper backpressure.
 - `tests/` — all the test code (Deno scripts, Playwright suite, raw-ws load script, manual cases). See [tests/README.md](tests/README.md).
 - `CLAUDE.md` — design notes for future maintainers / AI assistants.
 
@@ -55,7 +62,7 @@ sha256sum transfer.html
 The current expected hash, for the version of `transfer.html` checked into this commit:
 
 ```
-21693a02aec25f6bb155fa360b34f3c32e5c259c24ec76d014b82f370d93bf67  transfer.html
+f3b5b14845c1435c4b373a44445f76893490f738f42be92813373fe3616677e2  transfer.html
 ```
 
 If your local copy's hash matches this value, you have the same bytes I (the maintainer) intend to ship. If it doesn't, something has changed — could be a legitimate update from the repo, could be tampering. Investigate before using.
@@ -65,12 +72,13 @@ If your local copy's hash matches this value, you have the same bytes I (the mai
 The relay is a Deno script. On the machine that will host it:
 
 ```sh
-deno run --allow-net=0.0.0.0:8080 \
+deno run --allow-read=transfer.html \
+         --allow-net=0.0.0.0:8080 \
          --allow-env=WS_NO_BUFFER_UTIL,WS_NO_UTF_8_VALIDATE,NODE_ENV \
          relay.ts
 ```
 
-It listens on port 8080 by default. Pass a port as the first argument to change it. The `--allow-net` scope is intentionally narrow; the `--allow-env` scope is just three optional config reads from the `npm:ws` library. No disk access, no subprocess.
+It listens on port 8080 by default. Pass a port as the first argument to change it. The `--allow-net` scope is intentionally narrow; the `--allow-env` scope is just three optional config reads from the `npm:ws` library. `--allow-read=transfer.html` lets it serve the page at `/`; drop that flag (or the file) and it runs as a pure relay. The only disk access is that one read-only file; no subprocess.
 
 For LAN-only use, run it on any machine on your network. The HTML connects via `ws://host:8080/`. For internet use, put it behind a reverse proxy that terminates TLS, and use `wss://`. See `deploy.md` for one specific recipe (Fly.io, scale-to-zero — pennies per month for personal use).
 
@@ -130,4 +138,4 @@ The shared secret is 256 random bits, base64url-encoded (~43 characters). Genera
 
 ## Keywords
 
-end-to-end encrypted file transfer · zero-trust file sharing · self-hosted Send replacement · Firefox Send alternative · single HTML file file transfer · WebCrypto AES-256-GCM transfer · share secrets without trusting the host · post-quantum-resistant file sharing · send a `.env` file securely · send credentials over chat without exposing the chat host · auditable cryptographic file transfer in ~600 lines
+end-to-end encrypted file transfer · zero-trust file sharing · self-hosted Send replacement · Firefox Send alternative · single HTML file file transfer · WebCrypto AES-256-GCM transfer · share secrets without trusting the host · post-quantum-resistant file sharing · send a `.env` file securely · send credentials over chat without exposing the chat host · auditable cryptographic file transfer in ~670 lines

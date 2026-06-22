@@ -26,7 +26,7 @@ process.on("unhandledRejection", (err) => {
 
 const PARALLEL = Number(process.env.PARALLEL || 5);
 const SIZE_MB  = Number(process.env.SIZE_MB || 50);
-const RELAY    = process.env.RELAY || "wss://davidbludlow-transfer-html-relay.fly.dev/";
+const RELAY    = process.env.RELAY || "wss://transfer-html.fly.dev/";
 const CHUNK    = 64 * 1024;
 const SBUF_HIGH = 4 * 1024 * 1024;
 

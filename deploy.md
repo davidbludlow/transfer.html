@@ -1,6 +1,6 @@
 # Deploying the relay
 
-The relay is a single Deno script with no persistent state. Any host that can run a Deno binary and serve a public WebSocket (with TLS) will work. This file walks through one specific path: deploying to Fly.io on a scale-to-zero machine.
+The relay is a single Deno script with no persistent state. Any host that can run a Deno binary and serve a public WebSocket (with TLS) will work. The same app also serves `transfer.html` at `/`, so the page and the `wss://` relay share one origin — that's the hosted/online version. This file walks through one specific path: deploying to Fly.io on a scale-to-zero machine.
 
 ## Cost
 
@@ -17,7 +17,9 @@ Other paths (Oracle Cloud Free Tier, Hetzner, a self-hosted box behind Caddy or 
 
 ## Files in this repo that the recipe uses
 
-- `Dockerfile` — pinned `denoland/deno:alpine-2.7.14` base, copies `relay.ts` + `deno.json` + `deno.lock`, caches with `--frozen` for integrity-checked installs, runs the relay with `--allow-net=0.0.0.0:8080` and `--allow-env` scoped to three optional `npm:ws` config reads.
+- `Dockerfile` — pinned `denoland/deno:alpine-2.7.14` base. Copies `relay.ts` + `deno.json` + `deno.lock` + `transfer.html`. Caches with `--frozen` for integrity-checked installs.
+- Permissions the relay runs with: `--allow-read=transfer.html` (serves the page at `/`), `--allow-net=0.0.0.0:8080` (plus the sidecar host when metering is on), `--allow-env` scoped to the optional `npm:ws` and sidecar config reads.
+- `.dockerignore` is an allowlist; any new file the build context needs must be named in it.
 - `fly.toml` — **not committed**; gitignored. `fly launch` (step 3 below) generates a sensible one for you. A reference copy of the current maintainer's `fly.toml` is at the bottom of this file.
 
 ## Recipe
@@ -75,10 +77,11 @@ fly scale count 1
 ### 5. Smoke-test
 
 ```sh
-curl https://YOUR-APP-NAME.fly.dev/
+curl https://YOUR-APP-NAME.fly.dev/          # serves the transfer.html page (HTML)
+curl https://YOUR-APP-NAME.fly.dev/status    # the relay status
 ```
 
-Expected output:
+`/` serves the client page; any non-page path returns the relay status:
 
 ```
 transfer relay
@@ -184,12 +187,12 @@ fly scale count 0
 If you change your local `fly.toml`, update this block to match (there's a `.claude/rules/fly-toml-deploy-sync.md` rule that reminds AI assistants to do this).
 
 ```toml
-# fly.toml app configuration file generated for davidbludlow-transfer-html-relay on 2026-04-30T14:58:59-06:00
+# fly.toml for the transfer-html app (WebSocket relay + the client page it
+# serves at "/").
 #
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
+# See https://fly.io/docs/reference/configuration/ for how to use this file.
 
-app = 'davidbludlow-transfer-html-relay'
+app = 'transfer-html'
 primary_region = 'sjc'
 
 [build]
