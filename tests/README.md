@@ -19,7 +19,8 @@ cd tests
 deno run --allow-net=127.0.0.1 --allow-run=deno test-relay.ts
 
 # Crypto round-trip: HKDF derivation, AES-GCM frame encrypt/decrypt,
-# IV freshness, GCM authentication. Replicates the HTML's crypto
+# IV freshness, GCM authentication, and per-frame sequencing (a frame
+# fails to decrypt at the wrong position). Replicates the HTML's crypto
 # helpers in TypeScript and round-trips them.
 deno run test-crypto.ts
 ```

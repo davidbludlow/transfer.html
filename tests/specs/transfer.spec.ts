@@ -125,24 +125,29 @@ test.describe("baseline behaviour", () => {
   test("receiver rejects payload shorter than metadata.size", async ({
     browser,
   }) => {
-    // The receiver's `if (total !== metadata.size) throw` guard should fire if
-    // the sender ever transmits fewer bytes than its own metadata claims.
-    // We simulate this by patching encryptFrame on the sender to drop chunks.
+    // The receiver's `if (received !== metadata.size) throw` guard catches a
+    // sender whose metadata advertises more bytes than it actually streams.
+    // (A relay that drops, reorders, or duplicates frames is caught earlier, by
+    // the per-frame sequence authentication — see malicious-relay.spec.ts. This
+    // size check is the remaining defense against a sender whose own metadata
+    // and payload disagree.) We simulate such a sender by inflating the size it
+    // writes into the metadata frame while leaving the streamed bytes unchanged,
+    // so every frame still decrypts and only the end-of-transfer check fires.
     const ctx = await browser.newContext({ acceptDownloads: false });
     try {
       const sender = await newSender(ctx);
       const receiver = await newReceiver(ctx);
 
-      // After we click send, swallow every TYPE_CHUNK frame so the receiver
-      // sees only TYPE_META + TYPE_END and assembles 0 bytes.
       await sender.evaluate(() => {
-        const ws_proto = WebSocket.prototype;
-        const origSend = ws_proto.send;
-        ws_proto.send = function (data: any) {
-          if (data instanceof Uint8Array && data[0] === 2 /* TYPE_CHUNK */) {
-            return; // drop
+        const origStringify = JSON.stringify;
+        (JSON as any).stringify = function (value: any, ...rest: any[]) {
+          if (
+            value && (value.type === "file" || value.type === "text") &&
+            typeof value.size === "number"
+          ) {
+            value = { ...value, size: value.size + 1_000_000 };
           }
-          return origSend.call(this, data);
+          return origStringify.call(JSON, value, ...rest);
         };
       });
 

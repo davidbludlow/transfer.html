@@ -264,6 +264,7 @@ $("receive-button").onclick = async function receive() {
     // browser allocate Blob storage once.
     const chunks = [];
     let done = false;
+    let sequenceNumber = 0; // each frame's expected position in the stream; see frameAdditionalData
 
     await new Promise((resolve, reject) => {
       // Time out if no payload arrives. Cleared once metadata lands (the
@@ -282,11 +283,12 @@ $("receive-button").onclick = async function receive() {
       ws.onmessage = (e) => {
         chain = chain.then(async () => {
           if (typeof e.data === "string") {
-            // control frame from relay (peer-ready notification)
+            // Relay control frame (peer-ready), not part of the encrypted
+            // stream, so it doesn't advance sequenceNumber.
             return;
           }
           const frame = new Uint8Array(e.data);
-          const { type, plaintext } = await decryptFrame(aesKey, frame);
+          const { type, plaintext } = await decryptFrame(aesKey, frame, sequenceNumber++);
           if (type === TYPE_META) {
             clearTimeout(waitTimer);
             waitTimer = null;
@@ -438,9 +440,11 @@ async function sendData(metadata, source, statusElement, secretElement, secretWr
 
     progressElement.classList.remove("hidden");
 
+    let sequenceNumber = 0; // each frame's position in the stream; see frameAdditionalData
+
     // metadata frame
     const metaBytes = new TextEncoder().encode(JSON.stringify(metadata));
-    ws.send(await encryptFrame(aesKey, TYPE_META, metaBytes));
+    ws.send(await encryptFrame(aesKey, TYPE_META, sequenceNumber++, metaBytes));
 
     // streaming chunk loop
     const total = source.size;
@@ -459,7 +463,7 @@ async function sendData(metadata, source, statusElement, secretElement, secretWr
         );
       }
       await waitForDrain(ws, WS_BUFFER_HIGH);
-      ws.send(await encryptFrame(aesKey, TYPE_CHUNK, sliceBytes));
+      ws.send(await encryptFrame(aesKey, TYPE_CHUNK, sequenceNumber++, sliceBytes));
       sent += sliceBytes.byteLength;
 
       const now = performance.now();
@@ -471,7 +475,7 @@ async function sendData(metadata, source, statusElement, secretElement, secretWr
     }
 
     // end marker
-    ws.send(await encryptFrame(aesKey, TYPE_END, new Uint8Array(0)));
+    ws.send(await encryptFrame(aesKey, TYPE_END, sequenceNumber++, new Uint8Array(0)));
 
     // wait for the WebSocket buffer to drain before closing so the receiver
     // actually gets the end frame.
@@ -552,10 +556,10 @@ async function deriveKeys(secret) {
   return { roomId: bufferToBase64Url(roomBits), aesKey };
 }
 
-async function encryptFrame(aesKey, type, plaintext) {
+async function encryptFrame(aesKey, type, sequenceNumber, plaintext) {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ciphertext = new Uint8Array(await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv }, aesKey, plaintext,
+    { name: "AES-GCM", iv, additionalData: frameAdditionalData(type, sequenceNumber) }, aesKey, plaintext,
   ));
   const out = new Uint8Array(1 + 12 + ciphertext.byteLength);
   out[0] = type;
@@ -564,15 +568,28 @@ async function encryptFrame(aesKey, type, plaintext) {
   return out;
 }
 
-async function decryptFrame(aesKey, frame) {
+async function decryptFrame(aesKey, frame, sequenceNumber) {
   if (frame.byteLength < 13) throw new Error("frame too short");
   const type = frame[0];
   const iv = frame.slice(1, 13);
   const ciphertext = frame.slice(13);
   const plaintext = new Uint8Array(await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv }, aesKey, ciphertext,
+    { name: "AES-GCM", iv, additionalData: frameAdditionalData(type, sequenceNumber) }, aesKey, ciphertext,
   ));
   return { type, plaintext };
+}
+
+// A frame's type and sequence number (its 0-based position in the stream)
+// become its AES-GCM additional authenticated data: extra bytes the
+// authentication tag covers but does not encrypt. The receiver feeds in its
+// own running count, so a frame the relay reordered, duplicated, dropped, or
+// relabelled arrives at a position whose number no longer matches and
+// decryption fails.
+function frameAdditionalData(type, sequenceNumber) {
+  const bytes = new Uint8Array(9);
+  bytes[0] = type;
+  new DataView(bytes.buffer).setBigUint64(1, BigInt(sequenceNumber));
+  return bytes;
 }
 
 function generateSecret() {

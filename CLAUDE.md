@@ -31,9 +31,10 @@ These are softer than the hard rules above — exceptions are possible but requi
 
 ## Wire protocol invariants
 
-- Frame format: `[type:1 byte] [iv:12 bytes] [ciphertext+tag]`. Each frame is independently AES-256-GCM-encrypted with a fresh random IV.
+- Frame format: `[type:1 byte] [iv:12 bytes] [ciphertext+tag]`. Each frame is AES-256-GCM-encrypted with a fresh random IV.
 - First frame is metadata (JSON, UTF-8). Subsequent frames are chunks. Final frame is `end` (empty plaintext).
-- IVs are random per frame, not counter-based. Don't change to a counter scheme without thinking carefully about IV reuse — Web Crypto generates fresh IVs every frame and that is safe.
+- Each frame's type and its sequence number (0-based position in the stream) are the AES-GCM additional authenticated data, packed as `[type: 1 byte][sequenceNumber: 8 bytes, big-endian uint64]` (9 bytes total). The sequence number rides in the authenticated data only — it is never transmitted; the receiver supplies its own running count. A relay that reorders, duplicates, drops, or relabels frames therefore presents a frame at a position whose number no longer matches, and decryption fails. This is what guarantees the received bytes equal the sent bytes; keep it.
+- IVs are random per frame, not counter-based. Don't change to a counter scheme without thinking carefully about IV reuse — Web Crypto generates fresh IVs every frame and that is safe. (The sequence counter above is unrelated to the IV; it feeds only the authenticated data, never the IV.)
 - Chunk size is 64 KiB. Reasonable for memory and progress reporting; do not bloat without reason.
 
 ## Cryptographic invariants

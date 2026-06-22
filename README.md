@@ -55,7 +55,7 @@ sha256sum transfer.html
 The current expected hash, for the version of `transfer.html` checked into this commit:
 
 ```
-84830a76ce3b8420a4486ea227ba87e6bb6954c95ba0528cffd2de29cce4d6a8  transfer.html
+8ddfe11d44f185b7b9884be2687ba957b9f9cf544d9fb281ed2829b97fcfb69e  transfer.html
 ```
 
 If your local copy's hash matches this value, you have the same bytes I (the maintainer) intend to ship. If it doesn't, something has changed — could be a legitimate update from the repo, could be tampering. Investigate before using.
@@ -89,6 +89,7 @@ A frame is a binary WebSocket message:
 - `type` is `1` (metadata), `2` (chunk), or `3` (end).
 - `iv` is a fresh random 12-byte AES-GCM IV per frame.
 - `ciphertext+tag` is AES-256-GCM output (ciphertext concatenated with the 16-byte authentication tag).
+- The GCM tag also covers the frame's `type` and its sequence number (its 0-based position in the stream). The sequence number is not on the wire — the receiver counts frames itself — so a relay that reorders, duplicates, drops, or relabels frames yields a frame whose position no longer matches and decryption fails. The received bytes are therefore exactly the sent bytes, in order.
 
 The first frame is `metadata`, decrypting to UTF-8 JSON:
 
@@ -120,7 +121,6 @@ The shared secret is 256 random bits, base64url-encoded (~43 characters). Genera
 - **Traffic analysis.** The relay sees connection metadata (timestamps, byte counts, source IPs) and the opaque room ID. It cannot read content but it can confirm a transfer happened.
 - **Shoulder surfing of the secret.** The shared code is shown on screen during sending. Don't share screens during a transfer.
 - **A leaked secret.** Anyone who obtains the shared secret can derive the same room ID and key, join the room, and intercept the transfer. Treat the secret like a password for the duration of the transfer.
-- **A maliciously-active relay scrambling the byte order.** The relay still can't *read* your file (it sees only ciphertext and an opaque room ID), but it could selectively drop, duplicate, or reorder whole encrypted frames before forwarding. Each frame's AES-GCM tag protects *that* frame's bytes from tampering, but doesn't pin its position in the stream. The receiver's end-of-transfer size check catches gross mismatches (missing or extra chunks), but an equal-size scramble would silently produce a corrupted file the receiver thinks succeeded. Mitigating this means adding sequence information inside each frame; tracked in `todo.md` as a known item to address.
 
 ## Limits
 

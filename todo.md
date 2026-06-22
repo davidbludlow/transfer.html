@@ -10,10 +10,6 @@ These probably should be addressed before any real-user rollout.
 
 The relay currently has no per-room or per-IP rate limit, no abuse circuit breaker, and no monthly spending cap. A bad actor could pin many long-lived rooms, blast bytes through the relay until it hits Fly's egress bill, or otherwise exhaust resources with no upper bound on operator cost. Need a monthly byte cap that refuses new connections past the limit, plus per-IP / per-room limits to slow individual abusers. Solutions exist; nothing fancy needed.
 
-### Frame ordering / duplication / drop integrity
-
-Each frame is independently AES-GCM authenticated, so per-frame tampering and forgery are caught (decryption fails). But the receiver has no per-frame sequence info, so a malicious relay (or any intermediary with WS-message-level access) could reorder, duplicate, or selectively drop whole frames without detection. The end-of-transfer `received !== metadata.size` check catches gross size mismatches, but an equal-size scramble would silently produce a corrupted file the receiver thinks succeeded. Solutions exist (sequence-number-in-plaintext, counter-derived IVs à la RFC 8188, etc.); pick one and document the threat-model change in CLAUDE.md.
-
 ## Architectural / "explore this" ideas
 
 ### Reference: how Wormhole.app does it (research notes, May 2026)
