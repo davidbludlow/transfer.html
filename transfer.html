@@ -276,6 +276,11 @@ $("send-text-button").onclick = async function sendText() {
 };
 
 // ---------- receive ----------
+// Make pressing Enter in the code input do the same thing as clicking Receive.
+$("receive-secret-input").onkeydown = (e) => {
+  if (e.key === "Enter") $("receive-button").click();
+};
+
 $("receive-button").onclick = async function receive() {
   const secret = $("receive-secret-input").value.trim();
   if (!secret) {
