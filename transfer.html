@@ -467,38 +467,15 @@ async function sendData(metadata, source, statusElement, secretElement, secretWr
     const { roomId, aesKey } = await deriveKeys(secret);
 
     setStatus("connecting to relay...");
-    const ws = await connectRoom(roomId);
+    let ws = await connectRoom(roomId);
 
     secretElement.textContent = secret;
     secretWrapperElement.classList.remove("hidden");
     setStatus("waiting for receiver...");
 
-    // wait for peer-ready event (with timeout)
-    await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        try { ws.close(); } catch { /* ignore */ }
-        reject(new Error("no receiver joined within 20 minutes; check the code and try again"));
-      }, SENDER_WAIT_TIMEOUT);
-      ws.onmessage = (e) => {
-        if (typeof e.data === "string") {
-          try {
-            const parsed = JSON.parse(e.data);
-            if (parsed.ev === "peer") {
-              clearTimeout(timer);
-              resolve();
-            }
-          } catch { /* ignore */ }
-        }
-      };
-      ws.onclose = () => {
-        clearTimeout(timer);
-        reject(new Error("relay closed before peer joined"));
-      };
-      ws.onerror = () => {
-        clearTimeout(timer);
-        reject(new Error("relay error"));
-      };
-    });
+    // Wait for the receiver, reconnecting if a backgrounded tab's socket dies
+    // while the user switches away to share the code (see waitForReceiver).
+    ws = await waitForReceiver(roomId, ws);
 
     progressElement.classList.remove("hidden");
 
@@ -597,6 +574,52 @@ function connectRoom(roomId) {
     ws.onopen = () => resolve(ws);
     ws.onerror = () => reject(new Error("relay connect failed"));
   });
+}
+
+// Resolve once the page is foreground (immediately if it already is). A
+// backgrounded tab is frozen by the OS and can't usefully reconnect, so this
+// lets the sender defer re-joining the relay until the user comes back.
+function whenVisible() {
+  if (document.visibilityState === "visible") return Promise.resolve();
+  return new Promise((resolve) => {
+    document.addEventListener("visibilitychange", function onVisible() {
+      if (document.visibilityState !== "visible") return;
+      document.removeEventListener("visibilitychange", onVisible);
+      resolve();
+    });
+  });
+}
+
+// Wait in the room until the receiver joins, returning a live socket.
+// While the sender idles, switching away to share the code suspends a mobile
+// tab and the OS kills its relay socket. On each drop, wait until the page is
+// foreground again and re-open the *same* room — its ID is derived from the
+// secret, so the shared code keeps working and nothing is lost (no bytes are
+// sent until the receiver is present). Gives up after SENDER_WAIT_TIMEOUT.
+async function waitForReceiver(roomId, ws) {
+  const deadline = Date.now() + SENDER_WAIT_TIMEOUT;
+  while (true) {
+    const outcome = await new Promise((resolve) => {
+      const timer = setTimeout(() => resolve("timeout"), Math.max(0, deadline - Date.now()));
+      ws.onmessage = (e) => {
+        try {
+          if (typeof e.data === "string" && JSON.parse(e.data).ev === "peer") {
+            clearTimeout(timer);
+            resolve("peer");
+          }
+        } catch { /* ignore non-JSON relay frames */ }
+      };
+      ws.onclose = ws.onerror = () => { clearTimeout(timer); resolve("dropped"); };
+    });
+
+    if (outcome === "peer") return ws;
+    try { ws.close(); } catch { /* ignore */ }
+    if (outcome === "timeout") {
+      throw new Error("no receiver joined within 20 minutes; check the code and try again");
+    }
+    await whenVisible();
+    ws = await connectRoom(roomId);
+  }
 }
 
 // ---------- crypto ----------
