@@ -8,13 +8,13 @@ End-to-end encrypted file and text transfer through a dumb relay.
 - **Receiver** opens their own copy of `transfer.html` locally, pastes the key, receives the file (or text).
 - A small WebSocket relay forwards encrypted bytes between them. The relay never sees plaintext.
 
-The HTML is a single self-contained file. No frameworks, no CDN, no fonts, no dependencies fetched at runtime. Open it from `file://` and it works.
+The HTML is a single self-contained file. No frameworks, no CDN, no fonts, no dependencies fetched at runtime. Open it from your disk and it works.
 
 `transfer.html` is about 700 lines, all in one file. If you know JavaScript, you can audit it end-to-end in roughly an hour. If you don't want to read code, paste it into an LLM — in a few seconds it'll probably tell you it's safe to use.
 
 ## Get it
 
-The strongest way to use this is to **download `transfer.html` and open it from your own disk** (`file://`): once it's a local file, no server can ever tamper with its source. Two ways to get the file:
+The strongest way to use this is to **download `transfer.html` and open it from your own disk**: once it's a local file, no server can ever tamper with its source. Two ways to get the file:
 
 - **From source (zero-trust):** [view `transfer.html` on GitHub](https://github.com/davidbludlow/transfer.html/blob/main/transfer.html) and click the **Download raw file** icon. This path doesn't depend on the relay host at all.
 - **From the online version:** open <https://transfer-html.fly.dev/> and click **download this page**. Convenient, and the download is byte-for-byte the published file — but the page itself reached you over the network, so verify the hash.
@@ -46,7 +46,7 @@ What protects against each:
 
 ## Files
 
-- `transfer.html` — the entire client. Open in any modern browser via `file://`.
+- `transfer.html` — the entire client. Open in any modern browser as a local file.
 - `relay.ts` — the WebSocket forwarder. ~225 lines of Deno; uses `npm:ws` for proper backpressure.
 - `tests/` — all the test code (Deno scripts, Playwright suite, raw-ws load script, manual cases). See [tests/README.md](tests/README.md).
 - `CLAUDE.md` — design notes for future maintainers / AI assistants.
@@ -62,7 +62,7 @@ sha256sum transfer.html
 The current expected hash, for the version of `transfer.html` checked into this commit:
 
 ```
-bd0ffa5661dc0df8a8b1c1adb1ec5f53ad9d53d781aa4dfb30b3c9981c9198d0  transfer.html
+c47ce7ef3f69b8daf78b6e35d0fa5b7b24ec817fe3fd4531dca1454acc9312bf  transfer.html
 ```
 
 If your local copy's hash matches this value, you have the same bytes I (the maintainer) intend to ship. If it doesn't, something has changed — could be a legitimate update from the repo, could be tampering. Investigate before using.

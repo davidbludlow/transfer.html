@@ -66,7 +66,7 @@
 <h1>transfer.html</h1>
 <p class="sub">end-to-end encrypted file/text transfer · <span id="version">v0.1.0</span></p>
 
-<!-- Hidden by default; the script reveals it for the online (non-file://) version. -->
+<!-- Hidden by default; the script reveals it for the online (http/https) version. -->
 <div id="online-banner" class="banner hidden">
   <strong>You're using the online version.</strong>
   That means each time you open it, you're trusting this site to serve the real, unmodified .html file. Download it and open it from your own device, so you don't have to trust the site at all.
@@ -200,7 +200,7 @@ $("receive-mode").onclick = () => showPanel("receive-panel");
 // ---------- online vs. local copy ----------
 // When viewed online, reveal the download-a-copy banner. (Its link is wired
 // in HTML — empty href + download attribute saves the served bytes.)
-if (location.protocol !== "file:") {
+if (location.protocol === "http:" || location.protocol === "https:") {
   $("online-banner").classList.remove("hidden");
 }
 
