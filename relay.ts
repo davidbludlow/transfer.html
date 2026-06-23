@@ -216,6 +216,9 @@ server.on("upgrade", async (req, socket, head) => {
   });
 });
 
-server.listen(PORT, () => {
+// Bind explicitly to 0.0.0.0 rather than letting Node default to dual-stack
+// [::]:PORT, which falls outside the --allow-net=0.0.0.0:8080 permission scope
+// and stops the relay from listening at all on runtimes that default that way.
+server.listen(PORT, "0.0.0.0", () => {
   console.log(`transfer relay listening on :${PORT}`);
 });
