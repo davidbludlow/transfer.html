@@ -467,38 +467,13 @@ async function sendData(metadata, source, statusElement, secretElement, secretWr
     const { roomId, aesKey } = await deriveKeys(secret);
 
     setStatus("connecting to relay...");
-    const ws = await connectRoom(roomId);
+    let ws = await connectRoom(roomId);
 
     secretElement.textContent = secret;
     secretWrapperElement.classList.remove("hidden");
     setStatus("waiting for receiver...");
 
-    // wait for peer-ready event (with timeout)
-    await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        try { ws.close(); } catch { /* ignore */ }
-        reject(new Error("no receiver joined within 20 minutes; check the code and try again"));
-      }, SENDER_WAIT_TIMEOUT);
-      ws.onmessage = (e) => {
-        if (typeof e.data === "string") {
-          try {
-            const parsed = JSON.parse(e.data);
-            if (parsed.ev === "peer") {
-              clearTimeout(timer);
-              resolve();
-            }
-          } catch { /* ignore */ }
-        }
-      };
-      ws.onclose = () => {
-        clearTimeout(timer);
-        reject(new Error("relay closed before peer joined"));
-      };
-      ws.onerror = () => {
-        clearTimeout(timer);
-        reject(new Error("relay error"));
-      };
-    });
+    ws = await waitForReceiver(roomId, ws);
 
     progressElement.classList.remove("hidden");
 
@@ -597,6 +572,37 @@ function connectRoom(roomId) {
     ws.onopen = () => resolve(ws);
     ws.onerror = () => reject(new Error("relay connect failed"));
   });
+}
+
+// Mobile browsers disconnect the relay socket when the user leaves the page
+// (e.g. to paste the code into a messaging app); reconnect when they come back.
+async function waitForReceiver(roomId, ws) {
+  const deadline = Date.now() + SENDER_WAIT_TIMEOUT;
+  while (true) {
+    const outcome = await new Promise((resolve) => {
+      const timer = setTimeout(() => resolve("timeout"), Math.max(0, deadline - Date.now()));
+      ws.onmessage = (e) => {
+        try {
+          if (typeof e.data === "string" && JSON.parse(e.data).ev === "peer") {
+            clearTimeout(timer);
+            resolve("peer");
+          }
+        } catch { /* ignore non-JSON relay frames */ }
+      };
+      ws.onclose = ws.onerror = () => { clearTimeout(timer); resolve("dropped"); };
+    });
+
+    if (outcome === "peer") return ws;
+    try { ws.close(); } catch { /* ignore */ }
+    if (outcome === "timeout") {
+      throw new Error("no receiver joined within 20 minutes; check the code and try again");
+    }
+    if (document.hidden) await new Promise((resolve) => {
+      const onVisible = () => { if (!document.hidden) { document.removeEventListener("visibilitychange", onVisible); resolve(); } };
+      document.addEventListener("visibilitychange", onVisible);
+    });
+    ws = await connectRoom(roomId);
+  }
 }
 
 // ---------- crypto ----------

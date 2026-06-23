@@ -10,7 +10,7 @@ End-to-end encrypted file and text transfer through a dumb relay.
 
 The HTML is a single self-contained file. No frameworks, no CDN, no fonts, no dependencies fetched at runtime. Open it from `file://` and it works.
 
-`transfer.html` is about 670 lines, all in one file. If you know JavaScript, you can audit it end-to-end in roughly an hour. If you don't want to read code, paste it into an LLM — in a few seconds it'll probably tell you it's safe to use.
+`transfer.html` is about 700 lines, all in one file. If you know JavaScript, you can audit it end-to-end in roughly an hour. If you don't want to read code, paste it into an LLM — in a few seconds it'll probably tell you it's safe to use.
 
 ## Get it
 
@@ -62,7 +62,7 @@ sha256sum transfer.html
 The current expected hash, for the version of `transfer.html` checked into this commit:
 
 ```
-b961e249e15e5243edf5e93f5ec3bc81126a548726a73ed9800c15a6f690ea9b  transfer.html
+66d98662928ad8f6b96db409939acc0936e405a8e0a48d6bd722cff2f55be771  transfer.html
 ```
 
 If your local copy's hash matches this value, you have the same bytes I (the maintainer) intend to ship. If it doesn't, something has changed — could be a legitimate update from the repo, could be tampering. Investigate before using.
@@ -138,4 +138,4 @@ The shared secret is 256 random bits, base64url-encoded (~43 characters). Genera
 
 ## Keywords
 
-end-to-end encrypted file transfer · zero-trust file sharing · self-hosted Send replacement · Firefox Send alternative · single HTML file file transfer · WebCrypto AES-256-GCM transfer · share secrets without trusting the host · post-quantum-resistant file sharing · send a `.env` file securely · send credentials over chat without exposing the chat host · auditable cryptographic file transfer in ~670 lines
+end-to-end encrypted file transfer · zero-trust file sharing · self-hosted Send replacement · Firefox Send alternative · single HTML file file transfer · WebCrypto AES-256-GCM transfer · share secrets without trusting the host · post-quantum-resistant file sharing · send a `.env` file securely · send credentials over chat without exposing the chat host · auditable cryptographic file transfer in ~700 lines
