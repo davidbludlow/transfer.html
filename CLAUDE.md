@@ -73,6 +73,7 @@ Three layers, in increasing weight:
 - **`test-crypto.ts`** — Deno script. Round-trips the HTML's crypto helpers (HKDF, AES-GCM frame encrypt/decrypt) without browsers.
 - **`tests/`** — Playwright suite. Real browsers (Chromium, Firefox), real `transfer.html`, drives the full UI. Includes:
   - `tests/specs/transfer.spec.ts` — local round-trip, big-file probes
+  - `tests/specs/reconnect.spec.ts` — sender re-joins the room after a backgrounded-tab socket drop
   - `tests/specs/deployed.spec.ts` — sequential probe against the deployed relay
   - `tests/specs/deployed-parallel.spec.ts` — N concurrent transfers
   - `tests/bench-load.mjs` — raw-ws Node load test (no browsers, no encryption — purely tests relay forwarding capacity)
