@@ -19,7 +19,7 @@
   .sub { color: #777; font-size: 0.9em; margin-top: 0; }
   fieldset { border: 1px solid #ccc; padding: 1em; margin: 1em 0; }
   legend { padding: 0 0.4em; color: #555; font-size: 0.9em; }
-  button { font: inherit; padding: 0.4em 0.9em; cursor: pointer; }
+  button { font: inherit; padding: 0.4em 0.9em; cursor: pointer; border-radius: 0.25em; }
   input[type=text], textarea {
     font: inherit; width: 100%; box-sizing: border-box;
     padding: 0.4em; border: 1px solid #ccc; background: white;
@@ -105,7 +105,7 @@
             autocomplete="off" autocorrect="off" autocapitalize="off"
             spellcheck="false" data-form-type="other"
             placeholder="paste or type text here. cleared after send."></textarea>
-  <div class="row">
+  <div class="row" style="margin-top:0.5em">
     <button id="send-text-button">send</button>
     <span id="text-status" class="status"></span>
   </div>
