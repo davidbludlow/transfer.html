@@ -48,10 +48,10 @@ async function oneTransfer(browser: any, idx: number): Promise<{ ok: boolean; ms
     const fp = await makeSparseFile(`par-${idx}-${SIZE_MB}m.bin`, SIZE_MB * 1024 * 1024);
     await sender.setInputFiles("#file-input", fp);
     await sender.locator("#send-file-button").click();
-    await sender.locator("#file-secret").filter({ hasNotText: "" }).waitFor({ timeout: 60 * 1000 });
-    const secret = ((await sender.locator("#file-secret").textContent()) || "").trim();
+    await sender.locator("#file-key").filter({ hasNotText: "" }).waitFor({ timeout: 60 * 1000 });
+    const key = ((await sender.locator("#file-key").textContent()) || "").trim();
 
-    await receiver.locator("#receive-secret-input").fill(secret);
+    await receiver.locator("#receive-key-input").fill(key);
     await receiver.locator("#receive-button").click();
     await expect(receiver.locator("#receive-status")).toHaveClass(/ok|err/, { timeout: 30 * 60 * 1000 });
     const cls = (await receiver.locator("#receive-status").getAttribute("class")) || "";

@@ -66,13 +66,13 @@ test.describe("deployed Fly relay (smarter-relay: Node + ws backpressure)", () =
         await sender.setInputFiles("#file-input", fp);
         await sender.locator("#send-file-button").click();
         await sender
-          .locator("#file-secret")
+          .locator("#file-key")
           .filter({ hasNotText: "" })
           .waitFor({ timeout: 60 * 1000 });
-        const secret =
-          ((await sender.locator("#file-secret").textContent()) || "").trim();
+        const key =
+          ((await sender.locator("#file-key").textContent()) || "").trim();
 
-        await receiver.locator("#receive-secret-input").fill(secret);
+        await receiver.locator("#receive-key-input").fill(key);
         await receiver.locator("#receive-button").click();
 
         await expect(receiver.locator("#receive-status")).toHaveClass(/ok|err/, {

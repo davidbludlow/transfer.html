@@ -105,8 +105,8 @@ test.describe("malicious relay cannot corrupt a transfer", () => {
       const sender = await pageAt(ctx, 8100, "#send-file-mode");
       const receiver = await pageAt(ctx, 8100, "#receive-mode");
       const file = await makeSparseFile("mal-control.bin", SIZE);
-      const secret = await startSend(sender, file);
-      await startReceive(receiver, secret);
+      const key = await startSend(sender, file);
+      await startReceive(receiver, key);
 
       await expect(receiver.locator("#receive-status")).toHaveClass(/ok/, { timeout: 30_000 });
     } finally {
@@ -123,8 +123,8 @@ test.describe("malicious relay cannot corrupt a transfer", () => {
         const sender = await pageAt(ctx, port, "#send-file-mode");
         const receiver = await pageAt(ctx, port, "#receive-mode");
         const file = await makeSparseFile(`mal-${name}.bin`, SIZE);
-        const secret = await startSend(sender, file);
-        await startReceive(receiver, secret);
+        const key = await startSend(sender, file);
+        await startReceive(receiver, key);
 
         // The transfer must end in an error, and no file may be presented.
         await expect(receiver.locator("#receive-status")).toHaveClass(/err/, { timeout: 30_000 });

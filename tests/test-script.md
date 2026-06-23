@@ -18,8 +18,8 @@ Cases to exercise. Each case is independent — start fresh between them (reload
 ### 1. Text round-trip (A → B)
 
 - A: click **send text**, type `hello world`, click **send**.
-- A: a code appears in yellow.
-- B: click **receive**, paste the code, click **receive**.
+- A: a key appears in yellow.
+- B: click **receive**, paste the key, click **receive**.
 - **Expect:** B shows `hello world` in a `<pre>` block.
 - **Expect:** A shows status "sent." in green.
 - **Expect:** A's textarea is now empty.
@@ -28,22 +28,22 @@ Cases to exercise. Each case is independent — start fresh between them (reload
 
 - A: click **send file**, pick any small file (a text file or image works).
 - A: click **send**.
-- B: click **receive**, paste the code, click **receive**.
+- B: click **receive**, paste the key, click **receive**.
 - **Expect:** B's browser triggers a download with the original filename.
 - **Expect:** Downloaded file has identical bytes to the original.
 
 ### 3. Reverse direction (B → A)
 
 - B: click **send text**, type `pong`, click **send**.
-- A: click **receive**, paste B's code, click **receive**.
+- A: click **receive**, paste B's key, click **receive**.
 - **Expect:** A shows `pong`.
 
-### 4. Wrong code
+### 4. Wrong key
 
-- A: send text `secret`.
-- B: click **receive**, paste a clearly wrong 22-character code (e.g. all A's: `AAAAAAAAAAAAAAAAAAAAAA`), click **receive**.
-- **Expect (immediate):** B shows "waiting for sender..." (correct: the wrong code derives a different room ID, so B joins an empty room).
-- **Expect (after timeout, ~90s):** B's status flips to an error like "no peer joined within 90s; check the code and try again." The button is re-enabled. A's session is unaffected.
+- A: send text `hello`.
+- B: click **receive**, paste a clearly wrong key (e.g. all A's: `AAAAAAAAAAAAAAAAAAAAAA`), click **receive**.
+- **Expect (immediate):** B shows "waiting for sender..." (correct: the wrong key derives a different room ID, so B joins an empty room).
+- **Expect (after timeout, ~90s):** B's status flips to an error like "no peer joined within 90s; check the key and try again." The button is re-enabled. A's session is unaffected.
 
 ### 6. Unicode text
 
@@ -60,7 +60,7 @@ Cases to exercise. Each case is independent — start fresh between them (reload
 
 ### 8. Receiver field clears after submit
 
-- B: click **receive**, paste a code, click **receive**.
+- B: click **receive**, paste a key, click **receive**.
 - **Expect:** Immediately after clicking, the input field is empty.
 
 ### 9. Copy & clear (text receive)
@@ -73,14 +73,14 @@ Cases to exercise. Each case is independent — start fresh between them (reload
 ### 10. Sender refresh-mid-send
 
 - A: send text. Don't have B receive yet.
-- A: while still showing the code, refresh the page.
-- B: now try to receive with A's old code.
+- A: while still showing the key, refresh the page.
+- B: now try to receive with A's old key.
 - **Expect (immediate):** B shows "waiting for sender..." (the room A was in is gone; B is alone in a new room with the same ID).
 - **Expect (after timeout, ~90s):** Same timeout error as case 4.
 
 ### 11. Refresh clears sensitive fields
 
-Browsers attempt to restore form values across refreshes (especially Firefox). The page should defend against this for the file input, text input, and receive-code input.
+Browsers attempt to restore form values across refreshes (especially Firefox). The page should defend against this for the file input, text input, and receive-key input.
 
 - A: click **send file**, pick any file. Confirm the chosen file's name appears next to the file input.
 - A: refresh the page (F5 / Cmd-R).
@@ -89,7 +89,7 @@ Browsers attempt to restore form values across refreshes (especially Firefox). T
 Repeat with the other inputs (each starting from a fresh load):
 
 - **send text** panel: type into the textarea, refresh — textarea must be empty.
-- **receive** panel: paste a code into the input, refresh — input must be empty.
+- **receive** panel: paste a key into the input, refresh — input must be empty.
 
 ## Notes
 

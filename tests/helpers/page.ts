@@ -58,7 +58,7 @@ export async function newReceiver(ctx: BrowserContext): Promise<Page> {
   return page;
 }
 
-// Send a file from the sender page; returns the secret displayed.
+// Send a file from the sender page; returns the key displayed.
 export async function startSend(
   sender: Page,
   filePath: string,
@@ -67,14 +67,14 @@ export async function startSend(
   await sender.setInputFiles("#file-input", filePath);
   await sender.locator("#send-file-button").click();
   await sender
-    .locator("#file-secret")
+    .locator("#file-key")
     .filter({ hasNotText: "" })
     .waitFor({ timeout: timeoutMs });
-  return ((await sender.locator("#file-secret").textContent()) || "").trim();
+  return ((await sender.locator("#file-key").textContent()) || "").trim();
 }
 
-export async function startReceive(receiver: Page, secret: string) {
-  await receiver.locator("#receive-secret-input").fill(secret);
+export async function startReceive(receiver: Page, key: string) {
+  await receiver.locator("#receive-key-input").fill(key);
   await receiver.locator("#receive-button").click();
 }
 

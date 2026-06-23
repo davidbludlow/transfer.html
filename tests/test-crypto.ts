@@ -30,9 +30,9 @@ function b64uToBuf(s: string): Uint8Array {
   return out;
 }
 
-async function deriveKeys(secret: string) {
+async function deriveKeys(key: string) {
   const enc = new TextEncoder();
-  const ikm = enc.encode(secret);
+  const ikm = enc.encode(key);
   const baseKey = await crypto.subtle.importKey(
     "raw",
     ikm,
@@ -144,11 +144,11 @@ await test("base64url round-trip preserves random bytes", () => {
 });
 
 await test(
-  "deriveKeys is deterministic; same secret yields same roomId on both sides",
+  "deriveKeys is deterministic; same shared key yields same roomId on both sides",
   async () => {
-    const secret = "test-secret-abc123";
-    const a = await deriveKeys(secret);
-    const b = await deriveKeys(secret);
+    const sharedKey = "test-key-abc123";
+    const a = await deriveKeys(sharedKey);
+    const b = await deriveKeys(sharedKey);
     if (a.roomId !== b.roomId) throw new Error("roomId mismatch");
     // CryptoKey objects can't be compared directly; verify the keys are
     // operationally identical by encrypting on one side and decrypting on
@@ -160,9 +160,9 @@ await test(
   },
 );
 
-await test("different secrets produce different roomIds", async () => {
-  const a = await deriveKeys("secret-1");
-  const b = await deriveKeys("secret-2");
+await test("different shared keys produce different roomIds", async () => {
+  const a = await deriveKeys("key-1");
+  const b = await deriveKeys("key-2");
   if (a.roomId === b.roomId) throw new Error("roomIds must differ");
 });
 

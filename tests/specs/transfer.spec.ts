@@ -17,8 +17,8 @@ test.describe("baseline behaviour", () => {
 
       const size = 100 * 1024;
       const file = await makeSparseFile("rt-100k.bin", size);
-      const secret = await startSend(sender, file);
-      await startReceive(receiver, secret);
+      const key = await startSend(sender, file);
+      await startReceive(receiver, key);
 
       await expect(receiver.locator("#receive-status")).toHaveClass(/ok/);
       await expect(receiver.locator("#received-file-info")).toContainText(
@@ -40,8 +40,8 @@ test.describe("baseline behaviour", () => {
 
       const size = 100 * 1024 * 1024;
       const file = await makeSparseFile("rt-100m.bin", size);
-      const secret = await startSend(sender, file);
-      await startReceive(receiver, secret);
+      const key = await startSend(sender, file);
+      await startReceive(receiver, key);
 
       await expect(receiver.locator("#receive-status")).toHaveClass(/ok/, {
         timeout: 120 * 1000,
@@ -65,14 +65,14 @@ test.describe("baseline behaviour", () => {
       await sender.locator("#text-input").fill(text);
       await sender.locator("#send-text-button").click();
       await sender
-        .locator("#text-secret")
+        .locator("#text-key")
         .filter({ hasNotText: "" })
         .waitFor();
-      const secret = (
-        (await sender.locator("#text-secret").textContent()) || ""
+      const key = (
+        (await sender.locator("#text-key").textContent()) || ""
       ).trim();
 
-      await receiver.locator("#receive-secret-input").fill(secret);
+      await receiver.locator("#receive-key-input").fill(key);
       await receiver.locator("#receive-button").click();
 
       await expect(receiver.locator("#receive-status")).toHaveClass(/ok/);
@@ -98,8 +98,8 @@ test.describe("baseline behaviour", () => {
 
         const size = Math.floor(sizeGiB * 1024 ** 3);
         const file = await makeSparseFile(`rt-${sizeGiB}g.bin`, size);
-        const secret = await startSend(sender, file);
-        await startReceive(receiver, secret);
+        const key = await startSend(sender, file);
+        await startReceive(receiver, key);
 
         await expect(receiver.locator("#receive-status")).toHaveClass(/ok|err/, {
           timeout: 55 * 60 * 1000,
@@ -152,8 +152,8 @@ test.describe("baseline behaviour", () => {
       });
 
       const file = await makeSparseFile("short-payload.bin", 64 * 1024);
-      const secret = await startSend(sender, file);
-      await startReceive(receiver, secret);
+      const key = await startSend(sender, file);
+      await startReceive(receiver, key);
 
       await expect(receiver.locator("#receive-status")).toHaveClass(/err/);
       await expect(receiver.locator("#receive-status")).toContainText(

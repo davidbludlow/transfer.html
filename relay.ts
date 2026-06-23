@@ -2,8 +2,8 @@
 //
 // A dumb WebSocket forwarder. Two clients connect to the same room ID
 // and the relay splices their message streams together. The relay
-// never sees plaintext — clients encrypt with a key derived from a
-// shared secret that the relay never sees.
+// never sees plaintext or key material; clients do all encryption
+// locally with a shared key that the relay never sees.
 //
 // Optionally integrates with `worker/sidecar.js` to enforce a hard
 // monthly byte cap. Without SIDECAR_URL set, the relay runs uncapped

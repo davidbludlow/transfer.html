@@ -1,7 +1,7 @@
 // Reconnect test: a backgrounded mobile tab gets frozen by the OS and its idle
-// relay socket is killed the moment the sender switches away to share the code.
+// relay socket is killed the moment the sender switches away to share the key.
 // The sender must survive that — wait until the page is foreground again, re-join
-// the same room (its ID is derived from the secret, so the code stays valid), and
+// the same room (its ID is derived from the key, so the key stays valid), and
 // finish the transfer once the receiver joins — instead of showing "relay error".
 //
 // The page needs no test seams: this wraps WebSocket and overrides document
@@ -47,9 +47,9 @@ test("sender survives a backgrounded-tab socket drop and the transfer still comp
     await sender.setInputFiles("#file-input", file);
     await sender.locator("#send-file-button").click();
 
-    // Code is shown; sender is idling, waiting for the receiver.
-    await sender.locator("#file-secret").filter({ hasNotText: "" }).waitFor({ timeout: 30_000 });
-    const secret = ((await sender.locator("#file-secret").textContent()) || "").trim();
+    // Key is shown; sender is idling, waiting for the receiver.
+    await sender.locator("#file-key").filter({ hasNotText: "" }).waitFor({ timeout: 30_000 });
+    const key = ((await sender.locator("#file-key").textContent()) || "").trim();
     await expect(sender.locator("#file-status")).toContainText(/waiting for receiver/i);
     const before = await sender.evaluate(() => (window as any).__sockets.length);
 
@@ -69,11 +69,11 @@ test("sender survives a backgrounded-tab socket drop and the transfer still comp
       .poll(() => sender.evaluate(() => (window as any).__sockets.length), { timeout: 10_000 })
       .toBeGreaterThan(before);
 
-    // Receiver joins with the SAME code; the transfer completes end to end.
+    // Receiver joins with the SAME key; the transfer completes end to end.
     const receiver = await ctx.newPage();
     await receiver.goto("/transfer.html?relay=" + encodeURIComponent(RELAY));
     await receiver.locator("#receive-mode").click();
-    await startReceive(receiver, secret);
+    await startReceive(receiver, key);
 
     await expect(receiver.locator("#receive-status")).toHaveClass(/ok/, { timeout: 30_000 });
     await expect(sender.locator("#file-status")).toHaveClass(/ok/, { timeout: 30_000 });

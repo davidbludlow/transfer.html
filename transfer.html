@@ -25,7 +25,7 @@
     padding: 0.4em; border: 1px solid #ccc; background: white;
   }
   textarea { min-height: 8em; resize: vertical; }
-  .secret {
+  .key {
     font-size: 1.1em; font-weight: bold;
     padding: 0.5em; background: #fffbe6; border: 1px solid #e6d97a;
     word-break: break-all; user-select: all;
@@ -90,10 +90,10 @@
     <button id="send-file-button">send</button>
     <span id="file-status" class="status"></span>
   </div>
-  <div id="file-secret-wrap" class="hidden">
-    <p>share this code with the recipient:</p>
-    <div id="file-secret" class="secret"></div>
-    <p class="hint">Treat the code like a password. Delete when done.</p>
+  <div id="file-key-wrap" class="hidden">
+    <p>share this key with the recipient:</p>
+    <div id="file-key" class="key"></div>
+    <p class="hint">Treat the key like a password. Delete when done.</p>
   </div>
   <progress id="file-progress" class="hidden" max="1" value="0"></progress>
 </fieldset>
@@ -109,10 +109,10 @@
     <button id="send-text-button">send</button>
     <span id="text-status" class="status"></span>
   </div>
-  <div id="text-secret-wrap" class="hidden">
-    <p>share this code with the recipient:</p>
-    <div id="text-secret" class="secret"></div>
-    <p class="hint">Treat the code like a password. Delete when done.</p>
+  <div id="text-key-wrap" class="hidden">
+    <p>share this key with the recipient:</p>
+    <div id="text-key" class="key"></div>
+    <p class="hint">Treat the key like a password. Delete when done.</p>
   </div>
   <progress id="text-progress" class="hidden" max="1" value="0"></progress>
 </fieldset>
@@ -121,10 +121,10 @@
 <fieldset id="receive-panel" class="hidden">
   <legend>receive</legend>
   <div class="row">
-    <input id="receive-secret-input" type="text"
+    <input id="receive-key-input" type="text"
            autocomplete="off" autocorrect="off" autocapitalize="off"
            spellcheck="false" data-form-type="other"
-           placeholder="paste code">
+           placeholder="paste key">
     <button id="receive-button">receive</button>
   </div>
   <div id="receive-status" class="status"></div>
@@ -145,11 +145,11 @@
   <summary>how this keeps your data private</summary>
   <p>Nobody — companies, hackers, or governments — can read or alter what you send, as long as all three of these are true:</p>
   <ul>
-    <li>The code stays between you and the recipient. Anyone who gets it can read the transfer.</li>
+    <li>The key stays between you and the recipient. Anyone who gets it can read the transfer.</li>
     <li>Neither device has spyware — a bad browser extension, a keylogger, or other malware.</li>
     <li>You're actually sending to the right person, not an impostor.</li>
   </ul>
-  <p>You don't have to trust the servers. They see only scrambled data and a random ID — never the contents, never the code. (They can tell a transfer happened, just not what's in it.)</p>
+  <p>You don't have to trust the servers. They see only scrambled data and a random ID — never the contents, never the key. (They can tell a transfer happened, just not what's in it.)</p>
   <p>Even quantum computers, as we understand them today, can't crack it.</p>
   <p>This isn't a black box you have to trust. It's one short file you can open and read — or paste it into an AI like ChatGPT — to confirm it does exactly what this says.</p>
   <p>For the most security: download the file and open it from your own device. Audit it yourself. Then you don't have to trust any servers at all.</p>
@@ -166,7 +166,7 @@ const RELAY_URL = new URLSearchParams(location.search).get("relay")
   || "wss://transfer-html.fly.dev/";
 
 const CHUNK_SIZE = 64 * 1024;
-const SECRET_BYTES = 32; // 256 bits — matches AES-256 entropy so Grover gives the same 128-bit post-quantum strength as the cipher itself.
+const KEY_BYTES = 32; // 256 bits — matches AES-256 entropy so Grover gives the same 128-bit post-quantum strength as the cipher itself.
 const SENDER_WAIT_TIMEOUT = 20 * 60 * 1000; // 20 minutes
 const RECEIVER_WAIT_TIMEOUT = 30 * 1000; // 30 seconds
 
@@ -220,8 +220,8 @@ $("send-file-button").onclick = async function sendFile() {
       { type: "file", name: file.name, size: file.size },
       file,
       $("file-status"),
-      $("file-secret"),
-      $("file-secret-wrap"),
+      $("file-key"),
+      $("file-key-wrap"),
       $("file-progress"),
     );
   } catch (error) {
@@ -253,8 +253,8 @@ $("send-text-button").onclick = async function sendText() {
       { type: "text", size: bytes.byteLength },
       blob,
       $("text-status"),
-      $("text-secret"),
-      $("text-secret-wrap"),
+      $("text-key"),
+      $("text-key-wrap"),
       $("text-progress"),
     );
     // wipe textarea — not perfect, but helps
@@ -270,20 +270,20 @@ $("send-text-button").onclick = async function sendText() {
 };
 
 // ---------- receive ----------
-// Make pressing Enter in the code input do the same thing as clicking Receive.
-$("receive-secret-input").onkeydown = (e) => {
+// Make pressing Enter in the key input do the same thing as clicking Receive.
+$("receive-key-input").onkeydown = (e) => {
   if (e.key === "Enter") $("receive-button").click();
 };
 
 $("receive-button").onclick = async function receive() {
-  const secret = $("receive-secret-input").value.trim();
-  if (!secret) {
-    $("receive-status").textContent = "paste a code first.";
+  const key = $("receive-key-input").value.trim();
+  if (!key) {
+    $("receive-status").textContent = "paste a key first.";
     $("receive-status").className = "status err";
     return;
   }
   // clear the input — we don't want it sticking around
-  $("receive-secret-input").value = "";
+  $("receive-key-input").value = "";
   $("receive-button").disabled = true;
   $("received-text-wrap").classList.add("hidden");
   $("received-file-wrap").classList.add("hidden");
@@ -300,7 +300,7 @@ $("receive-button").onclick = async function receive() {
   try { lock = await navigator.wakeLock?.request("screen"); } catch {}
 
   try {
-    const { roomId, aesKey } = await deriveKeys(secret);
+    const { roomId, aesKey } = await deriveKeys(key);
     setStatus("connecting to relay...");
     const ws = await connectRoom(roomId);
 
@@ -322,7 +322,7 @@ $("receive-button").onclick = async function receive() {
       // sender has started transmitting, so the wait is over).
       let waitTimer = setTimeout(() => {
         try { ws.close(); } catch { /* ignore */ }
-        reject(new Error("no sender found within 30 seconds; check the code and try again"));
+        reject(new Error("no sender found within 30 seconds; check the key and try again"));
       }, RECEIVER_WAIT_TIMEOUT);
 
       // Serialize message processing. Without this, two async onmessage
@@ -439,16 +439,16 @@ $("received-text-copy-button").onclick = async function receiveTextCopy() {
 // single source.arrayBuffer() would hit, and keeps each read small enough
 // that Firefox's silent-truncation bug (Blob.arrayBuffer() above ~2 GiB)
 // can't bite.
-async function sendData(metadata, source, statusElement, secretElement, secretWrapperElement, progressElement) {
+async function sendData(metadata, source, statusElement, keyElement, keyWrapperElement, progressElement) {
   const setStatus = (message, cssClass = "") => {
     statusElement.textContent = message;
     statusElement.className = "status " + cssClass;
   };
 
-  // Reset any UI from a previous send on this page so the prior secret
+  // Reset any UI from a previous send on this page so the prior key
   // isn't briefly visible while the new one is being derived.
-  secretElement.textContent = "";
-  secretWrapperElement.classList.add("hidden");
+  keyElement.textContent = "";
+  keyWrapperElement.classList.add("hidden");
   progressElement.classList.add("hidden");
   progressElement.value = 0;
 
@@ -457,14 +457,14 @@ async function sendData(metadata, source, statusElement, secretElement, secretWr
   try { lock = await navigator.wakeLock?.request("screen"); } catch {}
 
   try {
-    const secret = generateSecret();
-    const { roomId, aesKey } = await deriveKeys(secret);
+    const key = generateKey();
+    const { roomId, aesKey } = await deriveKeys(key);
 
     setStatus("connecting to relay...");
     let ws = await connectRoom(roomId);
 
-    secretElement.textContent = secret;
-    secretWrapperElement.classList.remove("hidden");
+    keyElement.textContent = key;
+    keyWrapperElement.classList.remove("hidden");
     setStatus("waiting for receiver...");
 
     ws = await waitForReceiver(roomId, ws);
@@ -528,16 +528,16 @@ async function sendData(metadata, source, statusElement, secretElement, secretWr
 addEventListener("beforeunload", () => {
   $("file-input").value = "";
   $("text-input").value = "";
-  $("receive-secret-input").value = "";
+  $("receive-key-input").value = "";
   $("received-text").textContent = "";
 });
 // On every page show (covers initial load, refresh, and bfcache restore —
 // browser session-restore can otherwise repopulate the file input,
-// textarea, and the receive-secret-input with what they had before navigation).
+// textarea, and the receive-key-input with what they had before navigation).
 addEventListener("pageshow", () => {
   $("file-input").value = "";
   $("text-input").value = "";
-  $("receive-secret-input").value = "";
+  $("receive-key-input").value = "";
   $("received-text").textContent = "";
 });
 
@@ -569,7 +569,7 @@ function connectRoom(roomId) {
 }
 
 // Mobile browsers disconnect the relay socket when the user leaves the page
-// (e.g. to paste the code into a messaging app); reconnect when they come back.
+// (e.g. to paste the key into a messaging app); reconnect when they come back.
 async function waitForReceiver(roomId, ws) {
   const deadline = Date.now() + SENDER_WAIT_TIMEOUT;
   while (true) {
@@ -589,7 +589,7 @@ async function waitForReceiver(roomId, ws) {
     if (outcome === "peer") return ws;
     try { ws.close(); } catch { /* ignore */ }
     if (outcome === "timeout") {
-      throw new Error("no receiver joined within 20 minutes; check the code and try again");
+      throw new Error("no receiver joined within 20 minutes; check the key and try again");
     }
     if (document.hidden) await new Promise((resolve) => {
       const onVisible = () => { if (!document.hidden) { document.removeEventListener("visibilitychange", onVisible); resolve(); } };
@@ -600,9 +600,9 @@ async function waitForReceiver(roomId, ws) {
 }
 
 // ---------- crypto ----------
-async function deriveKeys(secret) {
+async function deriveKeys(key) {
   const enc = new TextEncoder();
-  const ikm = enc.encode(secret);
+  const ikm = enc.encode(key);
   const baseKey = await crypto.subtle.importKey(
     "raw", ikm, "HKDF", false, ["deriveBits"],
   );
@@ -656,8 +656,8 @@ function frameAdditionalData(type, sequenceNumber) {
   return bytes;
 }
 
-function generateSecret() {
-  return bufferToBase64Url(crypto.getRandomValues(new Uint8Array(SECRET_BYTES)));
+function generateKey() {
+  return bufferToBase64Url(crypto.getRandomValues(new Uint8Array(KEY_BYTES)));
 }
 
 // ---------- base64url helpers ----------
