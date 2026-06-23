@@ -88,11 +88,11 @@
   <div><input id="file-input" type="file"></div>
   <div class="row" style="margin-top:0.5em">
     <button id="send-file-button">send</button>
-    <span id="file-status" class="status"></span>
+    <span id="file-status" class="status" translate="no"></span>
   </div>
   <div id="file-key-wrap" class="hidden">
     <p>share this key with the recipient:</p>
-    <div id="file-key" class="key"></div>
+    <div id="file-key" class="key" translate="no"></div>
     <p class="hint">Treat the key like a password. Delete when done.</p>
   </div>
   <progress id="file-progress" class="hidden" max="1" value="0"></progress>
@@ -107,11 +107,11 @@
             placeholder="paste or type text here. cleared after send."></textarea>
   <div class="row" style="margin-top:0.5em">
     <button id="send-text-button">send</button>
-    <span id="text-status" class="status"></span>
+    <span id="text-status" class="status" translate="no"></span>
   </div>
   <div id="text-key-wrap" class="hidden">
     <p>share this key with the recipient:</p>
-    <div id="text-key" class="key"></div>
+    <div id="text-key" class="key" translate="no"></div>
     <p class="hint">Treat the key like a password. Delete when done.</p>
   </div>
   <progress id="text-progress" class="hidden" max="1" value="0"></progress>
@@ -127,16 +127,16 @@
            placeholder="paste key">
     <button id="receive-button">receive</button>
   </div>
-  <div id="receive-status" class="status"></div>
+  <div id="receive-status" class="status" translate="no"></div>
   <progress id="receive-progress" class="hidden" max="1" value="0"></progress>
   <div id="received-text-wrap" class="hidden">
-    <pre id="received-text"></pre>
+    <pre id="received-text" translate="no"></pre>
     <div class="row">
       <button id="received-text-copy-button">copy &amp; clear</button>
     </div>
   </div>
   <div id="received-file-wrap" class="hidden">
-    <p id="received-file-info"></p>
+    <p id="received-file-info" translate="no"></p>
     <button id="received-file-save-button">save again</button>
   </div>
 </fieldset>
