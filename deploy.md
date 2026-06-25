@@ -17,7 +17,7 @@ Other paths (Oracle Cloud Free Tier, Hetzner, a self-hosted box behind Caddy or 
 
 ## Files in this repo that the recipe uses
 
-- `Dockerfile` — pinned `denoland/deno:alpine-2.7.14` base. Copies `relay.ts` + `deno.json` + `deno.lock` + `transfer.html`. Caches with `--frozen` for integrity-checked installs.
+- `Dockerfile` — pinned `denoland/deno:alpine-2.9.0` base. Copies `relay.ts` + `deno.json` + `deno.lock` + `transfer.html`. Caches with `--frozen` for integrity-checked installs.
 - Permissions the relay runs with: `--allow-read=transfer.html` (serves the page at `/`), `--allow-net=0.0.0.0:8080` (plus the sidecar host when metering is on), `--allow-env` scoped to the optional `npm:ws` and sidecar config reads.
 - `.dockerignore` is an allowlist; any new file the build context needs must be named in it.
 - `fly.toml` — **not committed**; gitignored. `fly launch` (step 3 below) generates a sensible one for you. A reference copy of the current maintainer's `fly.toml` is at the bottom of this file.

@@ -1,4 +1,4 @@
-FROM denoland/deno:alpine-2.7.14
+FROM denoland/deno:alpine-2.9.0
 
 WORKDIR /app
 COPY deno.json deno.lock relay.ts ./
